@@ -28,33 +28,33 @@ int main(int argc,char *argv[]){
     std::cout << "There are " << num_img<< " Depthmap needed to be computed!\n" << std::endl;
 
     
-    // int flag = 0;
-    // int geom_iterations = 2;
-    // bool geom_consistency = false;
-    // for(int i=0;i<num_img;++i){
-    //     ProcessProblem(input_folder,output_folder, Scenes, i,geom_consistency);
+    int flag = 0;
+    int geom_iterations = 2;
+    bool geom_consistency = false;
+    for(int i=0;i<num_img;++i){
+        ProcessProblem(input_folder,output_folder, Scenes, i,geom_consistency);
 
-    // }
-    // geom_consistency = true;
-    // for (int geom_iter = 0; geom_iter < geom_iterations; ++geom_iter) {
-    //     for (size_t i = 0; i < num_img; ++i) {
-    //         ProcessProblem(input_folder,output_folder, Scenes, i,geom_consistency);
-    //     }
-    // }
-    // RunFusion(input_folder,Scenes,geom_consistency);
+    }
+    geom_consistency = true;
+    for (int geom_iter = 0; geom_iter < geom_iterations; ++geom_iter) {
+        for (size_t i = 0; i < num_img; ++i) {
+            ProcessProblem(input_folder,output_folder, Scenes, i,geom_consistency);
+        }
+    }
+    RunFusion(input_folder,Scenes,geom_consistency);
 
-    // ProcessProblem(input_folder,output_folder, Scenes, 5,geom_consistency);
-    cv::Mat_<cv::Vec3f> normal;
-    readNormalDmb("/home/xuan/MP-MVS/dense/MPMVS/2333_00000005/normals.dmb",normal);
-    //cv::imwrite("/home/xuan/MP-MVS/result/normal.jpg",normal);
-    cv::namedWindow("dmap", (800,1200));
-    cv::imshow("dmap",normal);
-    cv::waitKey(0);
-    cv::Mat_<float> dmap,costs,dmapg;
-    readDepthDmb("/home/xuan/MP-MVS/dense/MPMVS/2333_00000005/depths.dmb",dmap);
-    // readDepthDmb("/home/xuan/MP-MVS/dense/MPMVS/2333_00000005/depths_geom.dmb",dmapg);
-    readDepthDmb("/home/xuan/ACMH-main/dense/ACMH/2333_00000005/costs.dmb",costs);
-    DmbVisualize(dmap);
+    //ProcessProblem(input_folder,output_folder, Scenes, 5,geom_consistency);
+    // cv::Mat_<cv::Vec3f> normal;
+    // readNormalDmb("/home/xuan/MP-MVS/dense/MPMVS/2333_00000005/normals.dmb",normal);
+    // //cv::imwrite("/home/xuan/MP-MVS/result/normal.jpg",normal);
+    // cv::namedWindow("dmap", (800,1200));
+    // cv::imshow("dmap",normal);
+    // cv::waitKey(0);
+    // cv::Mat_<float> dmap,costs,dmapg;
+    // readDepthDmb("/home/xuan/MP-MVS/dense/MPMVS/2333_00000005/depths.dmb",dmap);
+    // // readDepthDmb("/home/xuan/MP-MVS/dense/MPMVS/2333_00000005/depths_geom.dmb",dmapg);
+    // readDepthDmb("/home/xuan/ACMH-main/dense/ACMH/2333_00000005/costs.dmb",costs);
+    // DmbVisualize(dmap);
     // DmbVisualize(dmapg);
 
     //深度图转ply

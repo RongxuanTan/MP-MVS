@@ -204,6 +204,9 @@ __device__ void ComputeHomography(const Camera ref_camera, const Camera src_came
     C_relative[0] = (ref_camera.C[0] - src_camera.C[0]);
     C_relative[1] = (ref_camera.C[1] - src_camera.C[1]);
     C_relative[2] = (ref_camera.C[2] - src_camera.C[2]);
+    C_relative[0] = (ref_C[0] - src_C[0]);
+    C_relative[1] = (ref_C[1] - src_C[1]);
+    C_relative[2] = (ref_C[2] - src_C[2]);    
     t_relative[0] = src_camera.R[0] * C_relative[0] + src_camera.R[1] * C_relative[1] + src_camera.R[2] * C_relative[2];
     t_relative[1] = src_camera.R[3] * C_relative[0] + src_camera.R[4] * C_relative[1] + src_camera.R[5] * C_relative[2];
     t_relative[2] = src_camera.R[6] * C_relative[0] + src_camera.R[7] * C_relative[1] + src_camera.R[8] * C_relative[2];
@@ -527,100 +530,37 @@ __device__ float4 GeneratePerturbedNormal(const Camera camera, const int2 p, con
 
 __device__ float3 BackProjectPoint2W(const float x, const float y, const float depth, const Camera camera)
 {
-    // float3 pointX;
-    // float3 tmpX;
-    // // Reprojection
-    // pointX.x = depth * (x - camera.K[2]) / camera.K[0];
-    // pointX.y = depth * (y - camera.K[5]) / camera.K[4];
-    // pointX.z = depth;
+    float3 pointX;
+    float3 tmpX;
+    // Reprojection
+    pointX.x = depth * (x - camera.K[2]) / camera.K[0];
+    pointX.y = depth * (y - camera.K[5]) / camera.K[4];
+    pointX.z = depth;
 
-    // // Transformation
+    // Transformation
     // pointX.x = camera.R[0] * pointX.x + camera.R[3] * pointX.y + camera.R[6] * pointX.z + camera.C[0];
     // pointX.y = camera.R[1] * pointX.x + camera.R[4] * pointX.y + camera.R[7] * pointX.z + camera.C[1];
     // pointX.z = camera.R[2] * pointX.x + camera.R[5] * pointX.y + camera.R[8] * pointX.z + camera.C[2];
-
-    // return pointX;
-    float3 pointX;
-    float3 tmpX;
-    // Reprojection
-    pointX.x = depth * (x - camera.K[2]) / camera.K[0];
-    pointX.y = depth * (y - camera.K[5]) / camera.K[4];
-    pointX.z = depth;
-
-    // Rotation
     tmpX.x = camera.R[0] * pointX.x + camera.R[3] * pointX.y + camera.R[6] * pointX.z;
     tmpX.y = camera.R[1] * pointX.x + camera.R[4] * pointX.y + camera.R[7] * pointX.z;
     tmpX.z = camera.R[2] * pointX.x + camera.R[5] * pointX.y + camera.R[8] * pointX.z;
-
-    // Transformation
-    float3 C;
-    C.x = -(camera.R[0] * camera.t[0] + camera.R[3] * camera.t[1] + camera.R[6] * camera.t[2]);
-    C.y = -(camera.R[1] * camera.t[0] + camera.R[4] * camera.t[1] + camera.R[7] * camera.t[2]);
-    C.z = -(camera.R[2] * camera.t[0] + camera.R[5] * camera.t[1] + camera.R[8] * camera.t[2]);
-    pointX.x = tmpX.x + C.x;
-    pointX.y = tmpX.y + C.y;
-    pointX.z = tmpX.z + C.z;
-
+    pointX.x = tmpX.x + camera.C[0];
+    pointX.y = tmpX.y + camera.C[1];
+    pointX.z = tmpX.z + camera.C[2];
     return pointX;
 
 }
 
-__device__ void ProjectPoint(const float3 PointX, const Camera camera, float2 &point, float &depth)
+__device__ void ProjectPoint(const float3 PointX, const Camera camera, float2 &point)
 {
-    // float3 tmp;
-    // tmp.x = camera.R[0] * PointX.x + camera.R[1] * PointX.y + camera.R[2] * PointX.z + camera.t[0];
-    // tmp.y = camera.R[3] * PointX.x + camera.R[4] * PointX.y + camera.R[5] * PointX.z + camera.t[1];
-    // tmp.z = camera.R[6] * PointX.x + camera.R[7] * PointX.y + camera.R[8] * PointX.z + camera.t[2];
-
-    // const float depth = camera.K[6] * tmp.x + camera.K[7] * tmp.y + camera.K[8] * tmp.z;
-    // point.x = (camera.K[0] * tmp.x + camera.K[1] * tmp.y + camera.K[2] * tmp.z) / depth;
-    // point.y = (camera.K[3] * tmp.x + camera.K[4] * tmp.y + camera.K[5] * tmp.z) / depth;
     float3 tmp;
     tmp.x = camera.R[0] * PointX.x + camera.R[1] * PointX.y + camera.R[2] * PointX.z + camera.t[0];
     tmp.y = camera.R[3] * PointX.x + camera.R[4] * PointX.y + camera.R[5] * PointX.z + camera.t[1];
     tmp.z = camera.R[6] * PointX.x + camera.R[7] * PointX.y + camera.R[8] * PointX.z + camera.t[2];
 
-    depth = camera.K[6] * tmp.x + camera.K[7] * tmp.y + camera.K[8] * tmp.z;
+    const float depth = camera.K[6] * tmp.x + camera.K[7] * tmp.y + camera.K[8] * tmp.z;
     point.x = (camera.K[0] * tmp.x + camera.K[1] * tmp.y + camera.K[2] * tmp.z) / depth;
     point.y = (camera.K[3] * tmp.x + camera.K[4] * tmp.y + camera.K[5] * tmp.z) / depth;    
-}
-
-__device__ float3 Get3DPointonWorld_cu(const float x, const float y, const float depth, const Camera camera)
-{
-    float3 pointX;
-    float3 tmpX;
-    // Reprojection
-    pointX.x = depth * (x - camera.K[2]) / camera.K[0];
-    pointX.y = depth * (y - camera.K[5]) / camera.K[4];
-    pointX.z = depth;
-
-    // Rotation
-    tmpX.x = camera.R[0] * pointX.x + camera.R[3] * pointX.y + camera.R[6] * pointX.z;
-    tmpX.y = camera.R[1] * pointX.x + camera.R[4] * pointX.y + camera.R[7] * pointX.z;
-    tmpX.z = camera.R[2] * pointX.x + camera.R[5] * pointX.y + camera.R[8] * pointX.z;
-
-    // Transformation
-    float3 C;
-    C.x = -(camera.R[0] * camera.t[0] + camera.R[3] * camera.t[1] + camera.R[6] * camera.t[2]);
-    C.y = -(camera.R[1] * camera.t[0] + camera.R[4] * camera.t[1] + camera.R[7] * camera.t[2]);
-    C.z = -(camera.R[2] * camera.t[0] + camera.R[5] * camera.t[1] + camera.R[8] * camera.t[2]);
-    pointX.x = tmpX.x + C.x;
-    pointX.y = tmpX.y + C.y;
-    pointX.z = tmpX.z + C.z;
-
-    return pointX;
-}
-
-__device__ void ProjectonCamera_cu(const float3 PointX, const Camera camera, float2 &point, float &depth)
-{
-    float3 tmp;
-    tmp.x = camera.R[0] * PointX.x + camera.R[1] * PointX.y + camera.R[2] * PointX.z + camera.t[0];
-    tmp.y = camera.R[3] * PointX.x + camera.R[4] * PointX.y + camera.R[5] * PointX.z + camera.t[1];
-    tmp.z = camera.R[6] * PointX.x + camera.R[7] * PointX.y + camera.R[8] * PointX.z + camera.t[2];
-
-    depth = camera.K[6] * tmp.x + camera.K[7] * tmp.y + camera.K[8] * tmp.z;
-    point.x = (camera.K[0] * tmp.x + camera.K[1] * tmp.y + camera.K[2] * tmp.z) / depth;
-    point.y = (camera.K[3] * tmp.x + camera.K[4] * tmp.y + camera.K[5] * tmp.z) / depth;
 }
 
 __device__ float ComputeGeomConsistencyCost(const cudaTextureObject_t depth_image, const Camera ref_camera, const Camera src_camera, const float4 PlaneHypothesis, const int2 p)
@@ -628,22 +568,20 @@ __device__ float ComputeGeomConsistencyCost(const cudaTextureObject_t depth_imag
     const float max_cost = 3.0f;
 
     float depth = ComputeDepthfromPlaneHypothesis(ref_camera, PlaneHypothesis, p);
-    float3 forward_point = Get3DPointonWorld_cu(p.x, p.y, depth, ref_camera);
+    float3 forward_point = BackProjectPoint2W(p.x, p.y, depth, ref_camera);
 
     float2 src_pt;
-    float src_d;
-    ProjectonCamera_cu(forward_point, src_camera, src_pt, src_d);
+    ProjectPoint(forward_point, src_camera, src_pt);
     const float src_depth = tex2D<float>(depth_image,  (int)src_pt.x + 0.5f, (int)src_pt.y + 0.5f);
 
     if (src_depth == 0.0f) {
         return max_cost;
     }
 
-    float3 src_3D_pt = Get3DPointonWorld_cu(src_pt.x, src_pt.y, src_depth, src_camera);
+    float3 src_3D_pt = BackProjectPoint2W(src_pt.x, src_pt.y, src_depth, src_camera);
 
     float2 backward_point;
-    float ref_d;
-    ProjectonCamera_cu(src_3D_pt, ref_camera, backward_point, ref_d);
+    ProjectPoint(src_3D_pt, ref_camera, backward_point);
 
     const float diff_col = p.x - backward_point.x;
     const float diff_row = p.y - backward_point.y;

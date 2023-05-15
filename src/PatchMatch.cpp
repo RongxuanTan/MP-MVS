@@ -62,10 +62,9 @@ Camera ReadCamera(const std::string &cam_path)
     for (int i = 0; i < 3; ++i) {
         file >> camera.K[3 * i + 0] >> camera.K[3 * i + 1] >> camera.K[3 * i + 2];
     }
-
-    for(int i=0;i<3;++i){
-        camera.C[i]=-(camera.R[i]*camera.t[0]+camera.R[i+3]*camera.t[1]+camera.R[i+6]*camera.t[2]);
-    }
+    camera.C[0] = -(camera.R[0] * camera.t[0] + camera.R[3] * camera.t[1] + camera.R[6] * camera.t[2]);
+    camera.C[1] = -(camera.R[1] * camera.t[0] + camera.R[4] * camera.t[1] + camera.R[7] * camera.t[2]);
+    camera.C[2] = -(camera.R[2] * camera.t[0] + camera.R[5] * camera.t[1] + camera.R[8] * camera.t[2]);
 
     float depth_num;
     float interval;
