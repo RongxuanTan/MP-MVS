@@ -203,10 +203,7 @@ __device__ void ComputeHomography(const Camera ref_camera, const Camera src_came
     R_relative[8] = src_camera.R[6] * ref_camera.R[6] + src_camera.R[7] * ref_camera.R[7] + src_camera.R[8] *ref_camera.R[8];
     C_relative[0] = (ref_camera.C[0] - src_camera.C[0]);
     C_relative[1] = (ref_camera.C[1] - src_camera.C[1]);
-    C_relative[2] = (ref_camera.C[2] - src_camera.C[2]);
-    C_relative[0] = (ref_C[0] - src_C[0]);
-    C_relative[1] = (ref_C[1] - src_C[1]);
-    C_relative[2] = (ref_C[2] - src_C[2]);    
+    C_relative[2] = (ref_camera.C[2] - src_camera.C[2]);   
     t_relative[0] = src_camera.R[0] * C_relative[0] + src_camera.R[1] * C_relative[1] + src_camera.R[2] * C_relative[2];
     t_relative[1] = src_camera.R[3] * C_relative[0] + src_camera.R[4] * C_relative[1] + src_camera.R[5] * C_relative[2];
     t_relative[2] = src_camera.R[6] * C_relative[0] + src_camera.R[7] * C_relative[1] + src_camera.R[8] * C_relative[2];

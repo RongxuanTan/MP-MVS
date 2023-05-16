@@ -30,7 +30,7 @@ struct PatchMatchParams {
     int max_iterations = 3;
     int nSizeHalfWindow = 5;
     int num_images = 5;
-    int max_image_size=3200;
+    int max_image_size=3600;
     int nSizeStep = 2;
     float sigma_spatial = 5.0f;
     float sigma_color = 3.0f;
@@ -56,9 +56,9 @@ struct Scene
     std::vector<int> srcID;
     cv::Mat image;
     cv::Mat_<float> depth;
-    int max_image_size = 3200;
+    int max_image_size = 3600;
     int num_downscale = 0;
-    int cur_image_size = 3200;
+    int cur_image_size = 3600;
 };
 
 void checkCudaCall(const cudaError_t error);

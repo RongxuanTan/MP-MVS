@@ -791,6 +791,8 @@ void PatchMatchCUDA::CudaMemInit(Scene &scene){
 
 void PatchMatchCUDA::Release(std::vector<Scene> Scenes,const int &ID)
 {
+    delete[] hostPlaneHypotheses;
+    delete[] hostCosts;
     Scene& scene = Scenes[ID];
     scene.image.release();
     std::vector<int> &srcIDs=scene.srcID;
