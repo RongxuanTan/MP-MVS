@@ -30,32 +30,32 @@ int main(int argc,char *argv[]){
     
     int flag = 0;
     int geom_iterations = 2;
-    bool geom_consistency = false;
+    bool geom_consistency = false,planar_prior = true;
     for(int i=0;i<num_img;++i){
-        ProcessProblem(input_folder,output_folder, Scenes, i,geom_consistency);
+        ProcessProblem(input_folder,output_folder, Scenes, i,geom_consistency,planar_prior);
 
     }
     geom_consistency = true;
+    planar_prior=false;
     for (int geom_iter = 0; geom_iter < geom_iterations; ++geom_iter) {
         for (size_t i = 0; i < num_img; ++i) {
-            ProcessProblem(input_folder,output_folder, Scenes, i,geom_consistency);
+            ProcessProblem(input_folder,output_folder, Scenes, i,geom_consistency,planar_prior);
         }
     }
     RunFusion(input_folder,Scenes,geom_consistency);
 
-    //ProcessProblem(input_folder,output_folder, Scenes, 5,geom_consistency);
-    // cv::Mat_<cv::Vec3f> normal;
-    // readNormalDmb("/home/xuan/MP-MVS/dense/MPMVS/2333_00000005/normals.dmb",normal);
-    // //cv::imwrite("/home/xuan/MP-MVS/result/normal.jpg",normal);
+    //ProcessProblem(input_folder,output_folder, Scenes, 0,geom_consistency,planar_prior);
+    //cv::Mat_<cv::Vec3f> normal;
+    //readNormalDmb("/home/xuan/MP-MVS/dense/MPMVS/2333_00000000/normals.dmb",normal);
+    //cv::imwrite("/home/xuan/MP-MVS/result/normal.jpg",normal);
     // cv::namedWindow("dmap", (800,1200));
-    // cv::imshow("dmap",normal);
-    // cv::waitKey(0);
-    // cv::Mat_<float> dmap,costs,dmapg;
-    // readDepthDmb("/home/xuan/MP-MVS/dense/MPMVS/2333_00000005/depths.dmb",dmap);
-    // // readDepthDmb("/home/xuan/MP-MVS/dense/MPMVS/2333_00000005/depths_geom.dmb",dmapg);
-    // readDepthDmb("/home/xuan/ACMH-main/dense/ACMH/2333_00000005/costs.dmb",costs);
+    // //cv::imshow("dmap",normal);
+    // //cv::waitKey(0);
+    // cv::Mat_<float> dmap,costs;
+    // readDepthDmb("/home/xuan/MP-MVS/dense/MPMVS/2333_00000013/depths_prior.dmb",dmap);
+    // readDepthDmb("/home/xuan/ACMH-main/dense/ACMH/2333_00000000/costs.dmb",costs);
     // DmbVisualize(dmap);
-    // DmbVisualize(dmapg);
+
 
     //深度图转ply
     // std::vector<PointList> pc;

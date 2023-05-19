@@ -128,6 +128,17 @@ void StoreColorPlyFileBinaryPointCloud (const std::string &plyFilePath, const st
     fclose(outputPly);
 }
 
+float3 Get3DPointonRefCam(const int x, const int y, const float depth, const Camera camera)
+{
+    float3 pointX;
+    // Reprojection
+    pointX.x = depth * (x - camera.K[2]) / camera.K[0];
+    pointX.y = depth * (y - camera.K[5]) / camera.K[4];
+    pointX.z = depth;
+
+    return pointX;
+}
+
 float3 Get3DPointonWorld(const int x, const int y, const float depth, const Camera camera)
 {
     float3 pointX;
@@ -256,82 +267,6 @@ void RunFusion(std::string &dense_folder, const std::vector<Scene> &Scenes, bool
     std::vector<PointList> PointCloud;
     PointCloud.clear();
 
-    // for (size_t i = 0; i < num_images; ++i) {
-    //     std::cout << "Fusing image " << std::setw(8) << std::setfill('0') << i << "..." << std::endl;
-    //     const int cols = depths[i].cols;
-    //     const int rows = depths[i].rows;
-    //     int num_ngb = Scenes[i].srcID.size();
-    //     std::vector<int2> used_list(num_ngb, make_int2(-1, -1));
-    //     for (int r =0; r < rows; ++r) {
-    //         for (int c = 0; c < cols; ++c) {
-    //             if (masks[i].at<uchar>(r, c) == 1)
-    //                 continue;
-    //             float ref_depth = depths[i].at<float>(r, c);
-    //             cv::Vec3f ref_normal = normals[i].at<cv::Vec3f>(r, c);
-
-    //             if (ref_depth <= 0.0)
-    //                 continue;
-
-    //             float3 PointX = Get3DPointonWorld(c, r, ref_depth, cameras[i]);
-    //             float3 consistent_Point = PointX;
-    //             cv::Vec3f consistent_normal = ref_normal;
-    //             float consistent_Color[3] = {(float)images[i].at<cv::Vec3b>(r, c)[0], (float)images[i].at<cv::Vec3b>(r, c)[1], (float)images[i].at<cv::Vec3b>(r, c)[2]};
-    //             int num_consistent = 0;
-    //             float dynamic_consistency = 0;
-
-    //             for (int j = 0; j < num_ngb; ++j) {
-    //                 int src_id = image_id_2_index[Scenes[i].srcID[j]];
-    //                 const int src_cols = depths[src_id].cols;
-    //                 const int src_rows = depths[src_id].rows;
-    //                 float2 point;
-    //                 float proj_depth;
-    //                 ProjectonCamera(PointX, cameras[src_id], point, proj_depth);
-    //                 int src_r = int(point.y + 0.5f);
-    //                 int src_c = int(point.x + 0.5f);
-    //                 if (src_c >= 0 && src_c < src_cols && src_r >= 0 && src_r < src_rows) {
-    //                     if (masks[src_id].at<uchar>(src_r, src_c) == 1)
-    //                         continue;
-
-    //                     float src_depth = depths[src_id].at<float>(src_r, src_c);
-    //                     cv::Vec3f src_normal = normals[src_id].at<cv::Vec3f>(src_r, src_c);
-    //                     if (src_depth <= 0.0)
-    //                         continue;
-
-    //                     float3 tmp_X = Get3DPointonWorld(src_c, src_r, src_depth, cameras[src_id]);
-    //                     float2 tmp_pt;
-    //                     ProjectonCamera(tmp_X, cameras[i], tmp_pt, proj_depth);
-    //                     float reproj_error = sqrt(pow(c - tmp_pt.x, 2) + pow(r - tmp_pt.y, 2));
-    //                     float relative_depth_diff = fabs(proj_depth - ref_depth) / ref_depth;
-    //                     float angle = GetAngle(ref_normal, src_normal);
-
-    //                     if (reproj_error < 2.0f && relative_depth_diff < 0.01f && angle < 0.174533f) {
-    //                         used_list[j].x = src_c;
-    //                         used_list[j].y = src_r;
-
-    //                         float tmp_index = reproj_error + 200 * relative_depth_diff + angle * 10;
-    //                         float cons = exp(-tmp_index);
-    //                         dynamic_consistency += exp(-tmp_index);
-    //                         num_consistent++;
-    //                     }
-    //                 }
-    //             }
-
-    //             if (num_consistent >= 1 && (dynamic_consistency > 0.3 * num_consistent)) {
-    //                 PointList point3D;
-    //                 point3D.coord = consistent_Point;
-    //                 point3D.normal = make_float3(consistent_normal[0], consistent_normal[1], consistent_normal[2]);
-    //                 point3D.color = make_float3(consistent_Color[0], consistent_Color[1], consistent_Color[2]);
-    //                 PointCloud.push_back(point3D);
-
-    //                 for (int j = 0; j < num_ngb; ++j) {
-    //                     if (used_list[j].x == -1)
-    //                         continue;
-    //                     masks[image_id_2_index[Scenes[i].srcID[j]]].at<uchar>(used_list[j].y, used_list[j].x) = 1;
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
     for (size_t i = 0; i < num_images; ++i) {
         std::cout << "Fusing image " << std::setw(8) << std::setfill('0') << i << "..." << std::endl;
         const int cols = depths[i].cols;
@@ -342,8 +277,8 @@ void RunFusion(std::string &dense_folder, const std::vector<Scene> &Scenes, bool
             for (int c = 0; c < cols; ++c) {
                 if (masks[i].at<uchar>(r, c) == 1)
                     continue;
-                const float& ref_depth = depths[i].at<float>(r, c);
-                const cv::Vec3f& ref_normal = normals[i].at<cv::Vec3f>(r, c);
+                float ref_depth = depths[i].at<float>(r, c);
+                cv::Vec3f ref_normal = normals[i].at<cv::Vec3f>(r, c);
 
                 if (ref_depth <= 0.0)
                     continue;
@@ -353,6 +288,7 @@ void RunFusion(std::string &dense_folder, const std::vector<Scene> &Scenes, bool
                 cv::Vec3f consistent_normal = ref_normal;
                 float consistent_Color[3] = {(float)images[i].at<cv::Vec3b>(r, c)[0], (float)images[i].at<cv::Vec3b>(r, c)[1], (float)images[i].at<cv::Vec3b>(r, c)[2]};
                 int num_consistent = 0;
+                float dynamic_consistency = 0;
 
                 for (int j = 0; j < num_ngb; ++j) {
                     int src_id = image_id_2_index[Scenes[i].srcID[j]];
@@ -375,35 +311,23 @@ void RunFusion(std::string &dense_folder, const std::vector<Scene> &Scenes, bool
                         float3 tmp_X = Get3DPointonWorld(src_c, src_r, src_depth, cameras[src_id]);
                         float2 tmp_pt;
                         ProjectonCamera(tmp_X, cameras[i], tmp_pt, proj_depth);
-                        float reproj_error = pow(c - tmp_pt.x, 2) + pow(r - tmp_pt.y, 2);
+                        float reproj_error = sqrt(pow(c - tmp_pt.x, 2) + pow(r - tmp_pt.y, 2));
                         float relative_depth_diff = fabs(proj_depth - ref_depth) / ref_depth;
                         float angle = GetAngle(ref_normal, src_normal);
 
-                        if (reproj_error < 4.0f && relative_depth_diff < 0.01f && angle < 0.174533f) {
-                            consistent_Point.x += tmp_X.x;
-                            consistent_Point.y += tmp_X.y;
-                            consistent_Point.z += tmp_X.z;
-                            consistent_normal = consistent_normal + src_normal;
-                            consistent_Color[0] += images[src_id].at<cv::Vec3b>(src_r, src_c)[0];
-                            consistent_Color[1] += images[src_id].at<cv::Vec3b>(src_r, src_c)[1];
-                            consistent_Color[2] += images[src_id].at<cv::Vec3b>(src_r, src_c)[2];
-
+                        if (reproj_error < 2.0f && relative_depth_diff < 0.01f && angle < 0.174533f) {
                             used_list[j].x = src_c;
                             used_list[j].y = src_r;
+
+                            float tmp_index = reproj_error + 200 * relative_depth_diff + angle * 10;
+                            float cons = exp(-tmp_index);
+                            dynamic_consistency += exp(-tmp_index);
                             num_consistent++;
                         }
                     }
                 }
 
-                if (num_consistent >= 2) {
-                    consistent_Point.x /= (num_consistent + 1.0f);
-                    consistent_Point.y /= (num_consistent + 1.0f);
-                    consistent_Point.z /= (num_consistent + 1.0f);
-                    consistent_normal /= (num_consistent + 1.0f);
-                    consistent_Color[0] /= (num_consistent + 1.0f);
-                    consistent_Color[1] /= (num_consistent + 1.0f);
-                    consistent_Color[2] /= (num_consistent + 1.0f);
-
+                if (num_consistent >= 1 && (dynamic_consistency > 0.3 * num_consistent)) {
                     PointList point3D;
                     point3D.coord = consistent_Point;
                     point3D.normal = make_float3(consistent_normal[0], consistent_normal[1], consistent_normal[2]);
@@ -419,11 +343,98 @@ void RunFusion(std::string &dense_folder, const std::vector<Scene> &Scenes, bool
             }
         }
     }
+    // for (size_t i = 0; i < num_images; ++i) {
+    //     std::cout << "Fusing image " << std::setw(8) << std::setfill('0') << i << "..." << std::endl;
+    //     const int cols = depths[i].cols;
+    //     const int rows = depths[i].rows;
+    //     int num_ngb = Scenes[i].srcID.size();
+    //     std::vector<int2> used_list(num_ngb, make_int2(-1, -1));
+    //     for (int r =0; r < rows; ++r) {
+    //         for (int c = 0; c < cols; ++c) {
+    //             if (masks[i].at<uchar>(r, c) == 1)
+    //                 continue;
+    //             const float& ref_depth = depths[i].at<float>(r, c);
+    //             const cv::Vec3f& ref_normal = normals[i].at<cv::Vec3f>(r, c);
+
+    //             if (ref_depth <= 0.0)
+    //                 continue;
+
+    //             float3 PointX = Get3DPointonWorld(c, r, ref_depth, cameras[i]);
+    //             float3 consistent_Point = PointX;
+    //             cv::Vec3f consistent_normal = ref_normal;
+    //             float consistent_Color[3] = {(float)images[i].at<cv::Vec3b>(r, c)[0], (float)images[i].at<cv::Vec3b>(r, c)[1], (float)images[i].at<cv::Vec3b>(r, c)[2]};
+    //             int num_consistent = 0;
+
+    //             for (int j = 0; j < num_ngb; ++j) {
+    //                 int src_id = image_id_2_index[Scenes[i].srcID[j]];
+    //                 const int src_cols = depths[src_id].cols;
+    //                 const int src_rows = depths[src_id].rows;
+    //                 float2 point;
+    //                 float proj_depth;
+    //                 ProjectonCamera(PointX, cameras[src_id], point, proj_depth);
+    //                 int src_r = int(point.y + 0.5f);
+    //                 int src_c = int(point.x + 0.5f);
+    //                 if (src_c >= 0 && src_c < src_cols && src_r >= 0 && src_r < src_rows) {
+    //                     if (masks[src_id].at<uchar>(src_r, src_c) == 1)
+    //                         continue;
+
+    //                     float src_depth = depths[src_id].at<float>(src_r, src_c);
+    //                     cv::Vec3f src_normal = normals[src_id].at<cv::Vec3f>(src_r, src_c);
+    //                     if (src_depth <= 0.0)
+    //                         continue;
+
+    //                     float3 tmp_X = Get3DPointonWorld(src_c, src_r, src_depth, cameras[src_id]);
+    //                     float2 tmp_pt;
+    //                     ProjectonCamera(tmp_X, cameras[i], tmp_pt, proj_depth);
+    //                     float reproj_error = pow(c - tmp_pt.x, 2) + pow(r - tmp_pt.y, 2);
+    //                     float relative_depth_diff = fabs(proj_depth - ref_depth) / ref_depth;
+    //                     float angle = GetAngle(ref_normal, src_normal);
+
+    //                     if (reproj_error < 4.0f && relative_depth_diff < 0.01f && angle < 0.174533f) {
+    //                         consistent_Point.x += tmp_X.x;
+    //                         consistent_Point.y += tmp_X.y;
+    //                         consistent_Point.z += tmp_X.z;
+    //                         consistent_normal = consistent_normal + src_normal;
+    //                         consistent_Color[0] += images[src_id].at<cv::Vec3b>(src_r, src_c)[0];
+    //                         consistent_Color[1] += images[src_id].at<cv::Vec3b>(src_r, src_c)[1];
+    //                         consistent_Color[2] += images[src_id].at<cv::Vec3b>(src_r, src_c)[2];
+
+    //                         used_list[j].x = src_c;
+    //                         used_list[j].y = src_r;
+    //                         num_consistent++;
+    //                     }
+    //                 }
+    //             }
+
+    //             if (num_consistent >= 2) {
+    //                 consistent_Point.x /= (num_consistent + 1.0f);
+    //                 consistent_Point.y /= (num_consistent + 1.0f);
+    //                 consistent_Point.z /= (num_consistent + 1.0f);
+    //                 consistent_normal /= (num_consistent + 1.0f);
+    //                 consistent_Color[0] /= (num_consistent + 1.0f);
+    //                 consistent_Color[1] /= (num_consistent + 1.0f);
+    //                 consistent_Color[2] /= (num_consistent + 1.0f);
+
+    //                 PointList point3D;
+    //                 point3D.coord = consistent_Point;
+    //                 point3D.normal = make_float3(consistent_normal[0], consistent_normal[1], consistent_normal[2]);
+    //                 point3D.color = make_float3(consistent_Color[0], consistent_Color[1], consistent_Color[2]);
+    //                 PointCloud.push_back(point3D);
+
+    //                 for (int j = 0; j < num_ngb; ++j) {
+    //                     if (used_list[j].x == -1)
+    //                         continue;
+    //                     masks[image_id_2_index[Scenes[i].srcID[j]]].at<uchar>(used_list[j].y, used_list[j].x) = 1;
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
     std::string ply_path = dense_folder + "/MPMVS/MPMVS_model.ply";
     StoreColorPlyFileBinaryPointCloud (ply_path, PointCloud);
 }
 
-void ProcessProblem(const std::string &input_folder,const std::string &output_folder, std::vector<Scene> &Scenes, const int ID,bool geom_consistency=false){
+void ProcessProblem(const std::string &input_folder,const std::string &output_folder, std::vector<Scene> &Scenes, const int ID,bool geom_consistency=false, bool planar_prior=false){
     Scene& scene = Scenes[ID];
     std::cout << "Processing image " << std::setw(8) << std::setfill('0') << scene.refID << "..." << std::endl;
     cudaSetDevice(0);
@@ -447,16 +458,126 @@ void ProcessProblem(const std::string &input_folder,const std::string &output_fo
     cv::Mat_<float> depths = cv::Mat::zeros(height, width, CV_32FC1);
     cv::Mat_<cv::Vec3f> normals = cv::Mat::zeros(height, width, CV_32FC3);
     cv::Mat_<float> costs = cv::Mat::zeros(height, width, CV_32FC1);
-    int count=0;
+    cv::Mat_<uchar> TexCofMap = cv::Mat::zeros(height, width, CV_8UC1);
     for (int col = 0; col < width; ++col) {
         for (int row = 0; row < height; ++row) {
-            int center = row * width + col;
-            float4 plane_hypothesis = MP.GetPlaneHypothesis(center);
+            int idx = row * width + col;
+            float4 plane_hypothesis = MP.GetPlaneHypothesis(idx);
             depths(row, col) = plane_hypothesis.w;
             normals(row, col) = cv::Vec3f(plane_hypothesis.x, plane_hypothesis.y, plane_hypothesis.z);
-            costs(row, col) = MP.GetCost(center);
+            costs(row, col) = MP.GetCost(idx);
+            TexCofMap(row, col) = MP.GetTextureCofidence(idx);
         }
     }
+
+    if (planar_prior) {
+        std::cout << "Run Planar Prior PatchMatch MVS ..." << std::endl;
+        MP.SetPlanarPriorParams();
+
+        const cv::Rect imageRC(0, 0, width, height);
+        std::vector<cv::Point> Vertices;
+
+        MP.GetTriangulateVertices(Vertices);
+        const auto triangles = MP.DelaunayTriangulation(imageRC, Vertices);
+        cv::Mat refImage = MP.GetReferenceImage().clone();
+        std::vector<cv::Mat> mbgr(3);
+        mbgr[0] = refImage.clone();
+        mbgr[1] = refImage.clone();
+        mbgr[2] = refImage.clone();
+        cv::Mat srcImage;
+        cv::merge(mbgr, srcImage);
+        for (const auto triangle : triangles) {
+            if (imageRC.contains(triangle.pt1) && imageRC.contains(triangle.pt2) && imageRC.contains(triangle.pt3)) {
+                cv::line(srcImage, triangle.pt1, triangle.pt2, cv::Scalar(0, 0, 255));
+                cv::line(srcImage, triangle.pt1, triangle.pt3, cv::Scalar(0, 0, 255));
+                cv::line(srcImage, triangle.pt2, triangle.pt3, cv::Scalar(0, 0, 255));
+            }
+        }
+        std::string triangulation_path = result_folder + "/triangulation.png";
+        cv::imwrite(triangulation_path, srcImage);
+
+        cv::Mat_<float> mask_tri = cv::Mat::zeros(height, width, CV_32FC1);
+        std::vector<float4> planeParams_tri;
+        planeParams_tri.clear();
+
+        uint32_t idx = 0;
+        for (const auto triangle : triangles) {
+            if (imageRC.contains(triangle.pt1) && imageRC.contains(triangle.pt2) && imageRC.contains(triangle.pt3)) {
+                float L01 = sqrt(pow(triangle.pt1.x - triangle.pt2.x, 2) + pow(triangle.pt1.y - triangle.pt2.y, 2));
+                float L02 = sqrt(pow(triangle.pt1.x - triangle.pt3.x, 2) + pow(triangle.pt1.y - triangle.pt3.y, 2));
+                float L12 = sqrt(pow(triangle.pt2.x - triangle.pt3.x, 2) + pow(triangle.pt2.y - triangle.pt3.y, 2));
+                //取最长边
+                float max_edge_length = std::max(L01, std::max(L02, L12));
+                float step = 1.0 / max_edge_length;
+
+                for (float p = 0; p < 1.0; p += step) {
+                    for (float q = 0; q < 1.0 - p; q += step) {
+                        int x = p * triangle.pt1.x + q * triangle.pt2.x + (1.0 - p - q) * triangle.pt3.x;
+                        int y = p * triangle.pt1.y + q * triangle.pt2.y + (1.0 - p - q) * triangle.pt3.y;
+                        mask_tri(y, x) = idx + 1.0; // To distinguish from the label of non-triangulated areas
+                    }
+                }
+
+                // estimate plane parameter
+                float4 n4 = MP.GetPriorPlaneParams(triangle, depths);
+                planeParams_tri.push_back(n4);
+                idx++;
+            }
+        }
+
+        cv::Mat_<float> priordepths = cv::Mat::zeros(height, width, CV_32FC1);
+        for (int i = 0; i < width; ++i) {
+            for (int j = 0; j < height; ++j) {
+                if (mask_tri(j, i) > 0) {
+                    float d = MP.GetDepthFromPlaneParam(planeParams_tri[mask_tri(j, i) - 1], i, j);
+                    if (d <= MP.GetMaxDepth() && d >= MP.GetMinDepth()) {
+                        priordepths(j, i) = d;
+                    }
+                    else {
+                        mask_tri(j, i) = 0;
+                    }
+                }
+            }
+        }
+        std::string depth_path = result_folder + "/depths_prior.dmb";
+        writeDepthDmb(depth_path, priordepths);
+        MP.CudaPlanarPriorInitialization(planeParams_tri, mask_tri);
+        MP.Run();
+
+        for (int col = 0; col < width; ++col) {
+            for (int row = 0; row < height; ++row) {
+                int idx = row * width + col;
+                float4 plane_hypothesis = MP.GetPlaneHypothesis(idx);
+                depths(row, col) = plane_hypothesis.w;
+                normals(row, col) = cv::Vec3f(plane_hypothesis.x, plane_hypothesis.y, plane_hypothesis.z);
+                costs(row, col) = MP.GetCost(idx);
+            }
+        }
+    }
+
+    // if (planar_prior){
+    //     std::cout << "Run Planar Prior Assisted PatchMatch MVS ..." << std::endl;
+    //     std::vector<cv::Point> Vertices;
+    //     MP.SetPlanarPriorParams();
+    //     MP.GetTriangulateVertices(Vertices);
+    //     cv::Mat refImage = MP.GetReferenceImage().clone();
+    //     std::vector<cv::Mat> mbgr(3);
+    //     mbgr[0] = refImage.clone();
+    //     mbgr[1] = refImage.clone();
+    //     mbgr[2] = refImage.clone();
+    //     cv::Mat srcImage;
+    //     cv::merge(mbgr, srcImage);
+    //     for(const auto v: Vertices){
+    //         circle(srcImage, v, 2, cv::Scalar(0, 0, 255), cv::FILLED, cv::LINE_8);
+
+    //     }
+    //     std::string Triangulate_path = result_folder + "/Triangulate.jpg";
+    //     cv::imwrite(Triangulate_path,srcImage);
+
+    // }
+    
+
+
     std::string suffix = "/depths.dmb";
     // if (geom_consistency) {
     //     suffix = "/depths_geom.dmb";
@@ -464,12 +585,31 @@ void ProcessProblem(const std::string &input_folder,const std::string &output_fo
     std::string depth_path = result_folder + suffix;
     std::string normal_path = result_folder + "/normals.dmb";
     std::string cost_path = result_folder + "/costs.dmb";
+    std::string texcof_path = result_folder + "/TexCofMap.jpg";
+    
     writeDepthDmb(depth_path, depths);
     writeNormalDmb(normal_path, normals);
     writeDepthDmb(cost_path, costs);
+    cv::imwrite(texcof_path,TexCofMap);
+    
     std::cout << "Processing image " << std::setw(8) << std::setfill('0') << scene.refID << " done!" << std::endl;
 
     MP.Release(Scenes,ID);
+}
+
+float PatchMatchCUDA::GetMinDepth()
+{
+    return params.depth_min;
+}
+
+float PatchMatchCUDA::GetMaxDepth()
+{
+    return params.depth_max;
+}
+
+float PatchMatchCUDA::GetDepthFromPlaneParam(const float4 plane_hypothesis, const int x, const int y)
+{
+    return -plane_hypothesis.w * cameras[0].K[0] / ((x - cameras[0].K[2]) * plane_hypothesis.x + (cameras[0].K[0] / cameras[0].K[4]) * (y - cameras[0].K[5]) * plane_hypothesis.y + cameras[0].K[0] * plane_hypothesis.z);
 }
 
 void PatchMatchCUDA::SetGeomConsistencyParams(bool geom_consistency)
@@ -477,6 +617,11 @@ void PatchMatchCUDA::SetGeomConsistencyParams(bool geom_consistency)
     params.geom_consistency = geom_consistency;
     if(geom_consistency)
         params.max_iterations = 2;
+}
+
+void PatchMatchCUDA::SetPlanarPriorParams()
+{
+    params.planar_prior = true;
 }
 
 float4 PatchMatchCUDA::GetPlaneHypothesis(const int index)
@@ -489,6 +634,10 @@ float PatchMatchCUDA::GetCost(const int index)
     return hostCosts[index];
 }
 
+uchar PatchMatchCUDA::GetTextureCofidence(const int index){
+    return hostTexCofMap[index];
+}
+
 int PatchMatchCUDA::GetReferenceImageWidth()
 {
     return cameras[0].width;
@@ -499,9 +648,169 @@ int PatchMatchCUDA::GetReferenceImageHeight()
     return cameras[0].height;
 }
 
+cv::Mat PatchMatchCUDA::GetReferenceImage(){
+    return images[0];
+}
+
 void PatchMatchCUDA::SetFolder(const std::string &_input_folder,const std::string &_output_folder){
     input_folder=_input_folder;
     output_folder=_output_folder;
+}
+
+float4 PatchMatchCUDA::GetPriorPlaneParams(const Triangle triangle, const cv::Mat_<float> depths)
+{
+    cv::Mat A(3, 4, CV_32FC1);
+    cv::Mat B(4, 1, CV_32FC1);
+
+    float3 ptX1 = Get3DPointonRefCam(triangle.pt1.x, triangle.pt1.y, depths(triangle.pt1.y, triangle.pt1.x), cameras[0]);
+    float3 ptX2 = Get3DPointonRefCam(triangle.pt2.x, triangle.pt2.y, depths(triangle.pt2.y, triangle.pt2.x), cameras[0]);
+    float3 ptX3 = Get3DPointonRefCam(triangle.pt3.x, triangle.pt3.y, depths(triangle.pt3.y, triangle.pt3.x), cameras[0]);
+    //计算平面参数
+    A.at<float>(0, 0) = ptX1.x;
+    A.at<float>(0, 1) = ptX1.y;
+    A.at<float>(0, 2) = ptX1.z;
+    A.at<float>(0, 3) = 1.0;
+    A.at<float>(1, 0) = ptX2.x;
+    A.at<float>(1, 1) = ptX2.y;
+    A.at<float>(1, 2) = ptX2.z;
+    A.at<float>(1, 3) = 1.0;
+    A.at<float>(2, 0) = ptX3.x;
+    A.at<float>(2, 1) = ptX3.y;
+    A.at<float>(2, 2) = ptX3.z;
+    A.at<float>(2, 3) = 1.0;
+    cv::SVD::solveZ(A, B);
+    float4 n4 = make_float4(B.at<float>(0, 0), B.at<float>(1, 0), B.at<float>(2, 0), B.at<float>(3, 0));
+    float norm2 = sqrt(pow(n4.x, 2) + pow(n4.y, 2) + pow(n4.z, 2));
+    if (n4.w < 0) {
+        norm2 *= -1;
+    }
+    n4.x /= norm2;
+    n4.y /= norm2;
+    n4.z /= norm2;
+    n4.w /= norm2;
+
+    return n4;
+}
+
+std::vector<Triangle> PatchMatchCUDA::DelaunayTriangulation(const cv::Rect boundRC, const std::vector<cv::Point>& points){
+    if (points.empty()) {
+        std::cout<<"No Point to Triangulate!"<<std::endl;
+        exit(1);
+    }
+
+    std::vector<Triangle> results;
+
+    std::vector<cv::Vec6f> temp_results;
+    //创建三角剖分对象
+    cv::Subdiv2D subdiv2d(boundRC);
+    for (const auto point : points) {//插入三角剖分顶点
+        subdiv2d.insert(cv::Point2f((float)point.x, (float)point.y));
+    }
+    //计算剖分结果
+    subdiv2d.getTriangleList(temp_results);
+
+    for (const auto temp_vec : temp_results) {
+        cv::Point pt1((int)temp_vec[0], (int)temp_vec[1]);
+        cv::Point pt2((int)temp_vec[2], (int)temp_vec[3]);
+        cv::Point pt3((int)temp_vec[4], (int)temp_vec[5]);
+        results.push_back(Triangle(pt1, pt2, pt3));
+    }
+    return results;
+}
+
+float PatchMatchCUDA::normalDiff(const float4 &ref,const float4 &src){
+    float diff=(ref.x-src.x)*(ref.x-src.x)+(ref.y-src.y)*(ref.y-src.y)+(ref.z-src.z)*(ref.z-src.z);
+    return acosf(sqrt(diff));
+}
+
+bool PatchMatchCUDA::isCornerPoint(const int row, const int col ,const int width, const int height){
+    const int ref_idx = row * width + col;
+    const float4 refcof=GetPlaneHypothesis(ref_idx);
+    const int nhalf = 6 ;
+    const int tn = 1;
+    int bad=0;
+    int count = 0;
+    int left = (col>=nhalf)?nhalf:col;
+    for(int i=1;i<=left;++i){
+        const int src_idx = ref_idx-i;
+        const float4 srccof=GetPlaneHypothesis(src_idx);
+        if(normalDiff(refcof,srccof)<tn){
+            ++count;
+        }
+        if(count>nhalf/2-1){
+            ++bad;
+            break;
+        }
+    }
+    count=0;
+    int right = (width - 1 - col >= nhalf) ? nhalf : width - col -1;
+    for(int i = 1; i <= right;++i){
+        const int src_idx = ref_idx+i;
+        const float4 srccof=GetPlaneHypothesis(src_idx);
+        if(normalDiff(refcof,srccof)<tn){
+            ++count;
+        }
+        if(count>nhalf/2-1){
+            ++bad;
+            break;
+        }
+    }
+    count=0;
+    int up = (row >= nhalf )? nhalf : row;
+    for(int i = 1; i <= up;++i){
+        const int src_idx = ref_idx-i*width;
+        const float4 srccof=GetPlaneHypothesis(src_idx);
+        if(normalDiff(refcof,srccof)<tn){
+            ++count;
+        }
+        if(count>nhalf/2-1){
+            ++bad;
+            break;
+        }
+    }
+    count=0;
+    int down = (height - 1 - row >= nhalf) ? nhalf : height - row -1;
+    for(int i = 1; i <= down;++i){
+        const int src_idx = ref_idx+i*width;
+        const float4 srccof=GetPlaneHypothesis(src_idx);
+        if(normalDiff(refcof,srccof)<tn){
+            ++count;
+        }
+        if(count>nhalf/2-1){
+            ++bad;
+            break;
+        }
+    }
+    if(bad>0)
+        return true;
+    return false;
+}
+
+void PatchMatchCUDA::GetTriangulateVertices(std::vector<cv::Point>& Vertices){
+    Vertices.clear();
+    const int step_size = 5;
+    const int width = GetReferenceImageWidth();
+    const int height = GetReferenceImageHeight();
+    for (int col = 0; col < width; col += step_size) {
+        for (int row = 0; row < height; row += step_size) {
+            float min_cost = 2.0f;
+            cv::Point temp_point;
+            int c_bound = std::min(width, col + step_size);
+            int r_bound = std::min(height, row + step_size);
+            for (int c = col; c < c_bound; ++c) {
+                for (int r = row; r < r_bound; ++r) {
+                    int center = r * width + c;
+                    if (GetCost(center) < 2.0f && min_cost > GetCost(center)) {
+                        temp_point = cv::Point(c, r);
+                        min_cost = GetCost(center);
+                    }
+                }
+            }
+            if (min_cost < 0.1f) {
+                Vertices.push_back(temp_point);
+            }
+        }
+    }
 }
 
 void PatchMatchCUDA::DataInit(){
@@ -650,7 +959,6 @@ void PatchMatchCUDA::PatchMatchInit(std::vector<Scene> Scenes,const int ID){
             depths.push_back(Srcscene.depth);
         }
     }
-
     //CUDA
     cudaImageArrays.resize(num_img);
     textureImages.resize(num_img);
@@ -672,12 +980,32 @@ void PatchMatchCUDA::AllocatePatchMatch(){
     hostPlaneHypotheses = new float4[wh];
     checkCudaCall(cudaMalloc((void**)&cudaPlaneHypotheses, sizeof(float4) * wh));
     //纹理系数图像
+    hostTexCofMap = new uchar[wh];
     checkCudaCall(cudaMalloc((void**)&cudaTexCofMap, sizeof(uchar) * wh));
     hostCosts = new float[wh];
     checkCudaCall(cudaMalloc((void**)&cudaCosts, sizeof(float) * wh));
-    checkCudaCall(cudaMalloc((void**)&cudaPreCosts, sizeof(float) * wh));
     checkCudaCall(cudaMalloc((void**)&cudaRandStates, sizeof(curandState) * wh));
     checkCudaCall(cudaMalloc((void**)&cudaSelectedViews, sizeof(unsigned int) * wh));
+}
+
+void PatchMatchCUDA::CudaPlanarPriorInitialization(const std::vector<float4> &PlaneParams, const cv::Mat_<float> &masks){
+    hostPriorPlanes = new float4[cameras[0].height * cameras[0].width];
+    cudaMalloc((void**)&cudaPriorPlanes, sizeof(float4) * (cameras[0].height * cameras[0].width));
+
+    hostPlaneMask = new unsigned int[cameras[0].height * cameras[0].width];
+    cudaMalloc((void**)&cudaPlaneMask, sizeof(unsigned int) * (cameras[0].height * cameras[0].width));
+
+    for (int i = 0; i < cameras[0].width; ++i) {
+        for (int j = 0; j < cameras[0].height; ++j) {
+            int idx = j * cameras[0].width + i;
+            hostPlaneMask[idx] = (unsigned int)masks(j, i);
+            if (masks(j, i) > 0) {
+                hostPriorPlanes[idx] = PlaneParams[masks(j, i) - 1];
+            }
+        }
+    }
+    cudaMemcpy(cudaPriorPlanes, hostPriorPlanes, sizeof(float4) * (cameras[0].height * cameras[0].width), cudaMemcpyHostToDevice);
+    cudaMemcpy(cudaPlaneMask, hostPlaneMask, sizeof(unsigned int) * (cameras[0].height * cameras[0].width), cudaMemcpyHostToDevice);
 }
 
 void PatchMatchCUDA::CudaMemInit(Scene &scene){
@@ -773,14 +1101,14 @@ void PatchMatchCUDA::CudaMemInit(Scene &scene){
         int height = ref_depth.rows;
         for (int col = 0; col < width; ++col) {
             for (int row = 0; row < height; ++row) {
-                int center = row * width + col;
+                int idx= row * width + col;
                 float4 PlaneHypothese;
                 PlaneHypothese.x = ref_normal(row, col)[0];
                 PlaneHypothese.y = ref_normal(row, col)[1];
                 PlaneHypothese.z = ref_normal(row, col)[2];
                 PlaneHypothese.w = ref_depth.at<float>(row, col);
-                hostPlaneHypotheses[center] = PlaneHypothese;
-                hostCosts[center] = ref_cost(row, col);
+                hostPlaneHypotheses[idx] = PlaneHypothese;
+                hostCosts[idx] = ref_cost(row, col);
             }
         }
         checkCudaCall(cudaMemcpy(cudaPlaneHypotheses, hostPlaneHypotheses, sizeof(float4)*width*height, cudaMemcpyHostToDevice));
@@ -793,6 +1121,8 @@ void PatchMatchCUDA::Release(std::vector<Scene> Scenes,const int &ID)
 {
     delete[] hostPlaneHypotheses;
     delete[] hostCosts;
+    delete[] hostTexCofMap;
+
     Scene& scene = Scenes[ID];
     scene.image.release();
     std::vector<int> &srcIDs=scene.srcID;
@@ -810,10 +1140,16 @@ void PatchMatchCUDA::Release(std::vector<Scene> Scenes,const int &ID)
     cudaFree(cudaCameras);
     cudaFree(cudaPlaneHypotheses);
     cudaFree(cudaCosts);
-    cudaFree(cudaPreCosts);
     cudaFree(cudaRandStates);
     cudaFree(cudaSelectedViews);
     cudaFree(cudaTexCofMap);
+
+    if(params.planar_prior){
+        delete[] hostPriorPlanes;
+        delete[] hostPlaneMask;
+        cudaFree(cudaPriorPlanes);
+        cudaFree(cudaPlaneMask);
+    }
 
     if(params.geom_consistency){
         scene.depth.release();
