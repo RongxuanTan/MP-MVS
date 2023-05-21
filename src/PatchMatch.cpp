@@ -590,7 +590,8 @@ void ProcessProblem(const std::string &input_folder,const std::string &output_fo
     writeDepthDmb(depth_path, depths);
     writeNormalDmb(normal_path, normals);
     writeDepthDmb(cost_path, costs);
-    cv::imwrite(texcof_path,TexCofMap);
+    if(!geom_consistency)
+        cv::imwrite(texcof_path,TexCofMap);
     
     std::cout << "Processing image " << std::setw(8) << std::setfill('0') << scene.refID << " done!" << std::endl;
 

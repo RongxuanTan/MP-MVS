@@ -1103,7 +1103,7 @@ void PatchMatchCUDA::Run(){
     int max_iterations = params.max_iterations;
 
     //计算纹理系数
-    if(!params.geom_consistency){
+    if(!params.geom_consistency&&!params.planar_prior){
         for(int scale=2;scale>=0;--scale)
         {
             params.nSizeStep=(int)pow(2.0,scale+1);
@@ -1153,6 +1153,7 @@ void PatchMatchCUDA::Run(){
 
     checkCudaCall(cudaMemcpy(hostPlaneHypotheses, cudaPlaneHypotheses, sizeof(float4) * width * height, cudaMemcpyDeviceToHost));
     checkCudaCall(cudaMemcpy(hostCosts, cudaCosts, sizeof(float) * width * height, cudaMemcpyDeviceToHost));
-    checkCudaCall(cudaMemcpy(hostTexCofMap, cudaTexCofMap, sizeof(uchar)*width*height, cudaMemcpyDeviceToHost));
+    if(!params.geom_consistency)
+        checkCudaCall(cudaMemcpy(hostTexCofMap, cudaTexCofMap, sizeof(uchar)*width*height, cudaMemcpyDeviceToHost));
 
 }

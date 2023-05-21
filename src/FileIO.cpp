@@ -44,9 +44,6 @@ int writeDepthDmb(const std::string file_path, const cv::Mat_<float> &depth)
 {
     FILE *outimage;
     outimage = fopen(file_path.c_str(), "wb");
-    if (!outimage) {
-        std::cout << "Error opening file " << file_path << std::endl;
-    }
 
     int32_t type = 1;
     int32_t h = depth.rows;
