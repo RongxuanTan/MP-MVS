@@ -1,85 +1,93 @@
 #include <iostream>
 #include "PatchMatch.h"
 #include "FileIO.h"
-#include "cmdline.h"
+
 using namespace std;
 
 std::vector<Scene> Scenes;
 int main(int argc,char *argv[]){
-    cmdline::parser a;
-    a.add<string>("input-folder",'i',"input data path",true,"");
-    a.add<string>("output-folder",'o',"output data path",false,"");
-    a.parse_check(argc,argv);
-
-    std::string input_folder=a.get<string>("input-folder");
-    std::string output_folder=a.get<string>("output-folder");
-    if(output_folder==""){
-        checkpath(input_folder);
-        output_folder=input_folder+"/MPMVS";
-    }else
-    checkpath(output_folder);
+    //write yaml
+    // {
+    //     cv::FileStorage fs("/home/xuan/MP-MVS/src/config/config.yaml", cv::FileStorage::WRITE);
+    //     fs<<"Input-folder"<<"/home/xuan/MP-MVS/dense";
+    //     fs<<"Output-folder"<<" ";
+    //     fs<<"Geometric consistency iterations"<<2;
+    //     fs<<"Planer prior"<<true;
+    //     fs<<"Geometric consistency planer prior"<<true;
+    //     fs<<"Sky segment"<<true;
+    //     fs<<"depth map eval"<<true;
+    //     fs<<"depth map eval folder"<<"/home/xuan/MP-MVS/ground_truth_depth/dslr_images";
+    //     fs.release(); 
+    // }
     
-    cout<<"Input data path:"<<input_folder<<endl;
-    cout<<"Output data path:"<<output_folder<<endl;
-    mkdir(output_folder.c_str(), 0777);
+    std::string yaml_path="/home/xuan/MP-MVS/src/config/config.yaml";
+    ConfigParams config=readConfig(yaml_path);
+
+
+    mkdir(config.output_folder.c_str(), 0777);
     //生成视图集合
-    GenerateSampleList(input_folder, Scenes);
+    GenerateSampleList(config.input_folder, Scenes);
     int num_img=Scenes.size();
     std::cout << "There are " << num_img<< " Depthmap needed to be computed!\n" << std::endl;
 
+    Time time;
+    time.start();
     
-    int flag = 0;
-    int geom_iterations = 2;
-    bool geom_consistency = false,planar_prior = true;
+    config.geom_consistency = false;
+    config.planar_prior = !config.gp&config.planar_prior;
     for(int i=0;i<num_img;++i){
-        ProcessProblem(input_folder,output_folder, Scenes, i,geom_consistency,planar_prior);
+        ProcessProblem(config.input_folder,config.output_folder, Scenes, i,config.geom_consistency,config.planar_prior);
 
     }
-    geom_consistency = true;
-    planar_prior=false;
-    for (int geom_iter = 0; geom_iter < geom_iterations; ++geom_iter) {
+    config.geom_consistency = true;
+    config.planar_prior=false;
+    for (int geom_iter = 0; geom_iter < config.geom_iterations; ++geom_iter) {
+        if(config.gp&&geom_iter!=config.geom_iterations-1)
+            config.planar_prior=true;
+        else
+            config.planar_prior=false;
         for (size_t i = 0; i < num_img; ++i) {
-            ProcessProblem(input_folder,output_folder, Scenes, i,geom_consistency,planar_prior);
+            ProcessProblem(config.input_folder,config.output_folder, Scenes, i,config.geom_consistency,config.planar_prior);
         }
     }
-    RunFusion(input_folder,Scenes,geom_consistency);
+    printf("cost time is %.10f us\n", time.cost());
+    // if(config.sky_seg)
+    //     GenerateSkyRegionMask(Scenes,input_folder);
+    RunFusion(config.input_folder,Scenes,config.sky_seg);
+   
+    
 
-    //ProcessProblem(input_folder,output_folder, Scenes, 0,geom_consistency,planar_prior);
-    //cv::Mat_<cv::Vec3f> normal;
-    //readNormalDmb("/home/xuan/MP-MVS/dense/MPMVS/2333_00000000/normals.dmb",normal);
-    //cv::imwrite("/home/xuan/MP-MVS/result/normal.jpg",normal);
+
+    // ProcessProblem(input_folder,output_folder, Scenes, 0,geom_consistency,planar_prior);
+    // // // cv::Mat_<cv::Vec3f> normal;
+    // // // // readNormalDmb("/home/xuan/MP-MVS/dense/MPMVS/2333_00000000/normals.dmb",normal);
+    // // // // cv::imwrite("/home/xuan/MP-MVS/result/normal.jpg",normal);
     // cv::namedWindow("dmap", (800,1200));
-    // //cv::imshow("dmap",normal);
-    // //cv::waitKey(0);
+    // // // //cv::imshow("dmap",normal);
+    // // // //cv::waitKey(0);
     // cv::Mat_<float> dmap,costs;
-    // readDepthDmb("/home/xuan/MP-MVS/dense/MPMVS/2333_00000013/depths_prior.dmb",dmap);
-    // readDepthDmb("/home/xuan/ACMH-main/dense/ACMH/2333_00000000/costs.dmb",costs);
-    // DmbVisualize(dmap);
-
-
-    //深度图转ply
-    // std::vector<PointList> pc;
-    // cv::Mat color=cv::imread("/home/xuan/MP-MVS/dense/images/00000005.jpg",1);
-    // float fx=3409.58,fy=3409.44,cx=3115.16 ,cy=2064.73;
-    // const int rows=dmap.rows;
-    // const int cols=dmap.cols;
-    // for(int i=0;i<rows;++i){
-    //     for(int j=0;j<cols;++j){
-    //         const float cost=costs.at<float>(i,j);
-    //         if(cost<0.2f){
-    //             float const depth=dmap.at<float>(i,j);
-    //             PointList p;
-    //             p.coord.x=depth * ((float)j - cx) / fx;
-    //             p.coord.y=depth * ((float)i - cy) / fy;
-    //             p.coord.z=depth;
-    //             p.normal=make_float3(0,0,0);
-    //             p.color=make_float3((float)color.at<cv::Vec3b>(i, j)[0],(float)color.at<cv::Vec3b>(i, j)[1],(float)color.at<cv::Vec3b>(i, j)[2]);
-    //             pc.push_back(p);
-    //         }
-
-    //     }
+    // // readDepthDmb("/home/xuan/MP-MVS/dense/MPMVS/2333_00000007/depths.dmb",dmap);
+    // // DmbVisualize(dmap,"MPMVS.jpg");
+    // // readDepthDmb("/home/xuan/ACMM-main/dense/ACMM/2333_00000007/depths_geom.dmb",dmap);
+    // // DmbVisualize(dmap,"ACMM.jpg");
+    // // readDepthDmb("/home/xuan/ACMMP-main/dense/ACMMP/2333_00000007/depths_geom.dmb",dmap);
+    // // DmbVisualize(dmap,"ACMMP.jpg");
+    // // //readDepthDmb("/home/xuan/MP-MVS/dense/MPMVS/2333_00000000/depths_prior.dmb",dmap);
+    // // //readDepthDmb("/home/xuan/ACMH-main/dense/ACMH/2333_00000000/costs.dmb",costs);
+    // // readColmapDmap("/home/xuan/colmap/data/dense/images/stereo/depth_maps/00000007.jpg.geometric.bin",dmap);
+    // // DmbVisualize(dmap,"COLMAP.jpg");
+    // readGT("/home/xuan/MP-MVS/ground_truth_depth/dslr_images/DSC_0634.JPG",dmap);
+    //GTVisualize(dmap);
+    // if(config.dmap_eval)
+    // {
+    //     //cv::Mat_<float> dmap;
+    //     //readGT("/home/xuan/MP-MVS/ground_truth_depth/dslr_images/DSC_0286.JPG", dmap);
+    //     //GTVisualize(dmap);
+    //     std::vector<double> score = DmapEval(config.input_folder,config.GT_folder,"/MPMVS","/depths.dmb",0.02);
     // }
-    // StoreColorPlyFileBinaryPointCloud ("/home/xuan/MP-MVS/1.ply", pc);
+    // std::vector<double> score = ColmapEval("/home/xuan/colmap/data/dslr_images_undistorted",config.GT_folder,0.5);
+
+
 
 
 

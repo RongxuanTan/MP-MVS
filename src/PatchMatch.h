@@ -4,6 +4,10 @@
 #include "main.h"
 #include "FileIO.h"
 #include <cstdarg>
+#include "benchmark.h"
+#include "datareader.h"
+#include "net.h"
+
 
 struct PointList {
     float3 coord;
@@ -35,11 +39,13 @@ struct PatchMatchParams {
     int top_k = 4;
     float depth_min = 0.0f;
     float depth_max = 1.0f;
+    int max_scale=2;
 
     float scaled_cols;
     float scaled_rows;
 
     bool geom_consistency = false;
+    bool geom_map=false;
     bool planar_prior = false;
 };
 
@@ -51,15 +57,13 @@ struct Scene
     cv::Mat image;
     cv::Mat_<float> depth;
     int max_image_size = 3200;
-    int num_downscale = 0;
-    int cur_image_size = 3200;
 };
 
 struct Triangle {
     cv::Point pt1, pt2, pt3;
     Triangle (const cv::Point _pt1, const cv::Point _pt2, const cv::Point _pt3) : pt1(_pt1) , pt2(_pt2), pt3(_pt3) {}
 };
-
+void GenerateSkyRegionMask(std::vector<Scene> &Scenes,std::string &dense_folder);
 void checkCudaCall(const cudaError_t error);
 void GenerateSampleList(const std::string &input_path,std::vector<Scene> &Scenes);
 Camera ReadCamera(const std::string &cam_path);
@@ -70,7 +74,7 @@ float3 Get3DPointonWorld(const int x, const int y, const float depth, const Came
 float GetAngle(const cv::Vec3f &v1, const cv::Vec3f &v2);
 void ProjectonCamera(const float3 PointX, const Camera camera, float2 &point, float &depth);
 void  RescaleImageAndCamera(cv::Mat_<cv::Vec3b> &src, cv::Mat_<cv::Vec3b> &dst, cv::Mat_<float> &depth, Camera &camera);
-void RunFusion(std::string &dense_folder, const std::vector<Scene> &Scenes, bool geom_consistency);
+void RunFusion(std::string &dense_folder, const std::vector<Scene> &Scenes,bool sky_mask);
 
 class PatchMatchCUDA
 {
@@ -101,6 +105,8 @@ private:
 
     uchar *cudaTexCofMap;
     uchar *hostTexCofMap;
+    uchar *cudaGeomMap;
+    uchar *hostGeomMap;
 
     PatchMatchParams params;
 
@@ -109,7 +115,7 @@ private:
 public:
 
     //.cpp
-    void SetGeomConsistencyParams(bool geom_consistency);
+    void SetGeomConsistencyParams(bool geom_consistency,bool planar_prior);
     void SetPlanarPriorParams();
     void SetFolder(const std::string &_input_folder,const std::string &_output_folder);
     void PatchMatchInit(std::vector<Scene> Scenes,const int ID);
@@ -127,11 +133,10 @@ public:
     float4 GetPlaneHypothesis(const int index);
     float GetCost(const int index);
     uchar GetTextureCofidence(const int index);
+    uchar GetGeomCount(const int index);
 
     float4 GetPriorPlaneParams(const Triangle triangle, const cv::Mat_<float> depths);
     std::vector<Triangle> DelaunayTriangulation(const cv::Rect boundRC, const std::vector<cv::Point>& points);
-    float normalDiff(const float4 &ref,const float4 &src);
-    bool isCornerPoint(const int row, const int col ,const int width, const int height);
     void GetTriangulateVertices(std::vector<cv::Point>& Vertices);
 
 

@@ -7,6 +7,14 @@ find_package(CUDA 11.0 REQUIRED )
 set(OpenCV_DIR "/usr/local/OpenCV3415/share/OpenCV")
 find_package(OpenCV REQUIRED )
 include_directories(${OpenCV_INCLUDE_DIRS})
+find_package(Eigen3 REQUIRED)
+
+include_directories(${EIGEN3_INCLUDE_DIRS})
+set(ncnn_DIR "/home/xuan/ncnn/build/install/lib/cmake/ncnn")
+set(NCNN_INCLUDE_DIRS /ncnn/build/install/include)
+find_package(ncnn REQUIRED)
+
+include_directories(${NCNN_INCLUDE_DIRS})
 
 #-arch: 指定nvcc编译目标GPU的型号
 #-code：选项指定了nvcc最后阶段生成的运行时代码的目标架构
@@ -35,11 +43,12 @@ cuda_add_executable(
     main.cpp
     FileIO.h
     FileIO.cpp
-    cmdline.h
     )
 
 # For linking ...
 # Specify target & libraries to link it with
+
 target_link_libraries(MPMVS
     ${OpenCV_LIBS}
+    ncnn
     )
