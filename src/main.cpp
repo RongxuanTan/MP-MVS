@@ -6,20 +6,6 @@ using namespace std;
 
 std::vector<Scene> Scenes;
 int main(int argc,char *argv[]){
-    //write yaml
-    // {
-    //     cv::FileStorage fs("/home/xuan/MP-MVS/src/config/config.yaml", cv::FileStorage::WRITE);
-    //     fs<<"Input-folder"<<"/home/xuan/MP-MVS/dense";
-    //     fs<<"Output-folder"<<" ";
-    //     fs<<"Geometric consistency iterations"<<2;
-    //     fs<<"Planer prior"<<true;
-    //     fs<<"Geometric consistency planer prior"<<true;
-    //     fs<<"Sky segment"<<true;
-    //     fs<<"depth map eval"<<true;
-    //     fs<<"depth map eval folder"<<"/home/xuan/MP-MVS/ground_truth_depth/dslr_images";
-    //     fs.release(); 
-    // }
-    
     std::string yaml_path="/home/xuan/MP-MVS/src/config/config.yaml";
     ConfigParams config=readConfig(yaml_path);
 
@@ -33,14 +19,10 @@ int main(int argc,char *argv[]){
     Time time;
     time.start();
     
-    config.geom_consistency = false;
-    config.planar_prior = !config.gp&config.planar_prior;
     for(int i=0;i<num_img;++i){
-        ProcessProblem(config.input_folder,config.output_folder, Scenes, i,config.geom_consistency,config.planar_prior);
-
+        //ProcessProblem(config.input_folder,config.output_folder, Scenes, i, false, !config.gp&&config.planar_prior);
     }
-    config.geom_consistency = true;
-    config.planar_prior=false;
+
     for (int geom_iter = 0; geom_iter < config.geom_iterations; ++geom_iter) {
         if(config.gp&&geom_iter!=config.geom_iterations-1)
             config.planar_prior=true;
@@ -52,7 +34,7 @@ int main(int argc,char *argv[]){
     }
     printf("cost time is %.10f us\n", time.cost());
     // if(config.sky_seg)
-    //     GenerateSkyRegionMask(Scenes,input_folder);
+    //     GenerateSkyRegionMask(Scenes,config.input_folder);
     RunFusion(config.input_folder,Scenes,config.sky_seg);
    
     
@@ -62,20 +44,20 @@ int main(int argc,char *argv[]){
     // // // cv::Mat_<cv::Vec3f> normal;
     // // // // readNormalDmb("/home/xuan/MP-MVS/dense/MPMVS/2333_00000000/normals.dmb",normal);
     // // // // cv::imwrite("/home/xuan/MP-MVS/result/normal.jpg",normal);
-    // cv::namedWindow("dmap", (800,1200));
+    cv::namedWindow("dmap", (800,1200));
     // // // //cv::imshow("dmap",normal);
     // // // //cv::waitKey(0);
-    // cv::Mat_<float> dmap,costs;
+    cv::Mat_<float> dmap,costs;
     // // readDepthDmb("/home/xuan/MP-MVS/dense/MPMVS/2333_00000007/depths.dmb",dmap);
     // // DmbVisualize(dmap,"MPMVS.jpg");
     // // readDepthDmb("/home/xuan/ACMM-main/dense/ACMM/2333_00000007/depths_geom.dmb",dmap);
     // // DmbVisualize(dmap,"ACMM.jpg");
     // // readDepthDmb("/home/xuan/ACMMP-main/dense/ACMMP/2333_00000007/depths_geom.dmb",dmap);
     // // DmbVisualize(dmap,"ACMMP.jpg");
-    // // //readDepthDmb("/home/xuan/MP-MVS/dense/MPMVS/2333_00000000/depths_prior.dmb",dmap);
+    readDepthDmb("/home/xuan/MP-MVS/dense/MPMVS/2333_00000000/depths_prior.dmb",dmap);
     // // //readDepthDmb("/home/xuan/ACMH-main/dense/ACMH/2333_00000000/costs.dmb",costs);
     // // readColmapDmap("/home/xuan/colmap/data/dense/images/stereo/depth_maps/00000007.jpg.geometric.bin",dmap);
-    // // DmbVisualize(dmap,"COLMAP.jpg");
+    DmbVisualize(dmap,"COLMAP.jpg");
     // readGT("/home/xuan/MP-MVS/ground_truth_depth/dslr_images/DSC_0634.JPG",dmap);
     //GTVisualize(dmap);
     // if(config.dmap_eval)

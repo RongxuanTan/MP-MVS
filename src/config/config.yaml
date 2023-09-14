@@ -2,9 +2,7 @@
 ---
 Input-folder: /home/xuan/MP-MVS/dense
 Output-folder: " "
-Geometric consistency iterations: 2
+Geometric consistency iterations: 3
 Planer prior: 1
 Geometric consistency planer prior: 0
 Sky segment: 0
-depth map eval: 1
-depth map eval folder: /home/xuan/MP-MVS/ground_truth_depth/dslr_images

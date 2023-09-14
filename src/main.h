@@ -8,7 +8,6 @@
 #include "opencv2/opencv.hpp"
 #include "opencv2/imgcodecs.hpp"
 
-// Includes CUDA
 #include <cuda_runtime.h>
 #include <cuda.h>
 #include <cuda_runtime_api.h>

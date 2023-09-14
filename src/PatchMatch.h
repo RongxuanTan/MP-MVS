@@ -4,9 +4,9 @@
 #include "main.h"
 #include "FileIO.h"
 #include <cstdarg>
-#include "benchmark.h"
-#include "datareader.h"
-#include "net.h"
+//#include "benchmark.h"
+//#include "datareader.h"
+//#include "net.h"
 
 
 struct PointList {
@@ -105,8 +105,8 @@ private:
 
     uchar *cudaTexCofMap;
     uchar *hostTexCofMap;
-    uchar *cudaGeomMap;
-    uchar *hostGeomMap;
+    float *cudaGeomMap;
+    float *hostGeomMap;
 
     PatchMatchParams params;
 
@@ -133,9 +133,9 @@ public:
     float4 GetPlaneHypothesis(const int index);
     float GetCost(const int index);
     uchar GetTextureCofidence(const int index);
-    uchar GetGeomCount(const int index);
+    float GetGeomCount(const int index);
 
-    float4 GetPriorPlaneParams(const Triangle triangle, const cv::Mat_<float> depths);
+    float4 GetPriorPlaneParams(const Triangle triangle, int width);
     std::vector<Triangle> DelaunayTriangulation(const cv::Rect boundRC, const std::vector<cv::Point>& points);
     void GetTriangulateVertices(std::vector<cv::Point>& Vertices);
 

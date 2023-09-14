@@ -1,11 +1,10 @@
 cmake_minimum_required (VERSION 2.8)
 project (MPMVS)
 
+find_package(OpenCV REQUIRED )
 #set CUDA path
 set(CUDA_TOOLKIT_ROOT_DIR "/usr/local/cuda-11.0")
-find_package(CUDA 11.0 REQUIRED ) 
-set(OpenCV_DIR "/usr/local/OpenCV3415/share/OpenCV")
-find_package(OpenCV REQUIRED )
+find_package(CUDA 11.0 REQUIRED )
 include_directories(${OpenCV_INCLUDE_DIRS})
 find_package(Eigen3 REQUIRED)
 
@@ -50,5 +49,5 @@ cuda_add_executable(
 
 target_link_libraries(MPMVS
     ${OpenCV_LIBS}
-    ncnn
+    #ncnn
     )

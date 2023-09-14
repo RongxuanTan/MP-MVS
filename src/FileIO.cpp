@@ -16,8 +16,8 @@ ConfigParams readConfig(std::string yaml_path){
     fs["Planer prior"]>>config.planar_prior;
     fs["Geometric consistency planer prior"]>>config.gp;
     fs["Sky segment"]>>config.sky_seg;
-    fs["depth map eval"]>>config.dmap_eval;
-    fs["depth map eval folder"]>>config.GT_folder;
+    //fs["depth map eval"]>>config.dmap_eval;
+    //fs["depth map eval folder"]>>config.GT_folder;
 
     checkpath(config.input_folder);
     if(config.output_folder!=" "){
