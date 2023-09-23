@@ -4,6 +4,11 @@
 * OpenCV >= 2.4  
 * CUDA >= 6.0   
 ## Usage
+### CMakeLists.txt
+```
+set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-O3 --use_fast_math --maxrregcount=128 --ptxas-options=-v -std=c++11 --compiler-options -Wall -gencode arch=compute_80,code=sm_80)
+```
+### build
 ```
 mkdir build  
 cd build  
