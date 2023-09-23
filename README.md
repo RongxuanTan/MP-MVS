@@ -1,5 +1,5 @@
 # MVS
-
+This code was developed on Ubuntu.
 ## Dependencies
 * OpenCV >= 2.4  
 * CUDA >= 6.0   
