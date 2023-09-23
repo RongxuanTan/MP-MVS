@@ -15,7 +15,7 @@ git clone https://github.com/RongxuanTan/MP-MVS.git
 cd MP-MVS
 mkdir build  
 cd build  
-cmake ../src  
+cmake ..    
 make  
 ```
 ### config.yaml
