@@ -821,7 +821,7 @@ void  RescaleImageAndCamera(cv::Mat_<cv::Vec3b> &src, cv::Mat_<cv::Vec3b> &dst, 
     camera.height = rows;
 }
 
-void RunFusion(std::string &dense_folder, std::string &out_folder,const std::vector<Scene> &Scenes,bool sky_mask){
+void RunFusion(std::string &dense_folder, const std::vector<Scene> &Scenes,bool sky_mask){
     size_t num_images = Scenes.size();
     std::string image_folder = dense_folder + std::string("/images");
     std::string cam_folder = dense_folder + std::string("/cams");
@@ -970,7 +970,7 @@ void RunFusion(std::string &dense_folder, std::string &out_folder,const std::vec
             }
         }
     }
-    std::string ply_path = out_folder + "/MPMVS_model.ply";
+    std::string ply_path = dense_folder + "/MPMVS/MPMVS_model.ply";
     StoreColorPlyFileBinaryPointCloud (ply_path, PointCloud);
 }
 
@@ -1149,7 +1149,7 @@ uchar PatchMatchCUDA::GetTextureCofidence(const int index){
 }
 
 float PatchMatchCUDA::GetGeomCount(const int index){
-    return hostGeomCosts[index];
+    return hostGeomMap[index];
 }
 
 int PatchMatchCUDA::GetReferenceImageWidth()
@@ -1239,66 +1239,59 @@ void PatchMatchCUDA::GetTriangulateVertices(std::vector<cv::Point>& Vertices){
     const int step_size = 5;
     const int width = GetReferenceImageWidth();
     const int height = GetReferenceImageHeight();
-    if(!params.geomPlanarPrior){
-        for (int col = 0; col < width; col += step_size) {
-            for (int row = 0; row < height; row += step_size) {
-                float min_cost = 2.0f;
-                cv::Point temp_point;
-                int c_bound = std::min(width, col + step_size);
-                int r_bound = std::min(height, row + step_size);
-                for (int c = col; c < c_bound; ++c) {
-                    for (int r = row; r < r_bound; ++r) {
-                        int idx = r * width + c;
-                        if (GetCost(idx) < 2.0f && min_cost > GetCost(idx)) {
-                            temp_point = cv::Point(c, r);
-                            min_cost = GetCost(idx);
+    for (int col = 0; col < width; col += step_size) {
+        for (int row = 0; row < height; row += step_size) {
+            float min_cost = 2.0f;
+            float minCosts[3] = {2.0f,2.0f,2.0f};
+            std::vector<cv::Point> points(3);
+            cv::Point temp_point;
+            int c_bound = std::min(width, col + step_size);
+            int r_bound = std::min(height, row + step_size);
+            for (int c = col; c < c_bound; ++c) {
+                for (int r = row; r < r_bound; ++r) {
+                    int idx = r * width + c;
+                    float cost = GetCost(idx);
+                    if(!params.geomPlanarPrior){
+                        if (cost < 0.1f && min_cost > cost) {
+                        temp_point = cv::Point(c, r);
+                        min_cost = cost;
                         }
+                    }else if (cost < 0.16f && ( GetGeomCount(idx)< 0.3f) && cost < minCosts[2]){
+                        //
+                        minCosts[2] = cost;
+                        points[2] = cv::Point(c, r);
+                        for(int i = 1; i >= 0; --i){
+                            if(minCosts[i] <= minCosts[i+1]) break;
+                            
+                            float temp = minCosts[i+1];  
+                            minCosts[i+1] = minCosts[i];
+                            minCosts[i] = temp;
+                            
+                            cv::Point tp = points[i+1];
+                            points[i+1] = points[i];
+                            points[i] = tp;
+                        }
+                        //
+                        // if (cost < 0.2f && ( GetGeomCount(idx)< 0.4f) && min_cost > cost) {
+                        // temp_point = cv::Point(c, r);
+                        // min_cost = cost;
+                        // }
                     }
                 }
-                if(min_cost < 0.1f)
-                    Vertices.push_back(temp_point);
             }
-        }
-    }else{
-        for (int col = 0; col < width; col += step_size) {
-            for (int row = 0; row < height; row += step_size) {
-                float minCosts[3] = {2.0f,2.0f,2.0f};
-                std::vector<cv::Point> points(3);
-                cv::Point temp_point;
-                int c_bound = std::min(width, col + step_size);
-                int r_bound = std::min(height, row + step_size);
-                for (int c = col; c < c_bound; ++c) {
-                    for (int r = row; r < r_bound; ++r) {
-                        int idx = r * width + c;
-                        float cost = GetCost(idx);
-                        if (cost < 0.16f && ( GetGeomCount(idx)< 0.3f) && cost < minCosts[2]){
-                            //
-                            minCosts[2] = cost;
-                            points[2] = cv::Point(c, r);
-                            for(int i = 1; i >= 0; --i){
-                                if(minCosts[i] <= minCosts[i+1]) break;
-                                
-                                float temp = minCosts[i+1];  
-                                minCosts[i+1] = minCosts[i];
-                                minCosts[i] = temp;
-                                
-                                cv::Point tp = points[i+1];
-                                points[i+1] = points[i];
-                                points[i] = tp;
-                            }
-                        }
-                    }
-                }
+            if(params.geomPlanarPrior){
                 for(int i = 0; i <3; ++i){
                     if(minCosts[i] < 0.2f){
                         Vertices.push_back(points[i]);
                     }else
                         break;
                 }
+            }else{
+                if(min_cost < 0.1f)
+                    Vertices.push_back(temp_point);
             }
+         }
     }
-    }
-
 }
 
 void PatchMatchCUDA::DataInit(){
@@ -1312,12 +1305,8 @@ void PatchMatchCUDA::DataInit(){
 void PatchMatchCUDA::PatchMatchInit(std::vector<Scene> Scenes,const int ID){
     //clear data 
     DataInit();
+
     Scene& scene = Scenes[ID];
-    size_t n = scene.srcID.size();
-
-    //images.resize(n+1);
-    //cameras.resize(n+1);
-
     //set images and camera data
     std::string image_folder = input_folder + std::string("/images");
     std::string cam_folder = input_folder + std::string("/cams");   
@@ -1338,6 +1327,7 @@ void PatchMatchCUDA::PatchMatchInit(std::vector<Scene> Scenes,const int ID){
     cam.width=scene.image.cols;
     cameras.push_back(cam);
 
+    size_t n = scene.srcID.size();
     for (size_t i = 0; i < n; ++i) {
         Scene& srcScene = Scenes[scene.srcID[i]];
         std::stringstream image_path;
@@ -1460,11 +1450,11 @@ void PatchMatchCUDA::AllocatePatchMatch(){
     checkCudaCall(cudaMalloc((void**)&cudaCameras, sizeof(Camera) * num_img));
     if(params.geom_consistency){
         checkCudaCall(cudaMalloc((void**)&cudaTextureDepths, sizeof(cudaTextureObject_t) * (num_img-1)));
-        hostGeomCosts = new float[wh];
-        checkCudaCall(cudaMalloc((void**)&cudaGeomCosts, sizeof(float) * wh));
+        hostGeomMap = new float[wh];
+        checkCudaCall(cudaMalloc((void**)&cudaGeomMap, sizeof(float) * wh));
         if(params.geomPlanarPrior){
-            // hostGeomCosts = new float[wh];
-            // checkCudaCall(cudaMalloc((void**)&cudaGeomCosts, sizeof(float) * wh));
+            // hostGeomMap = new float[wh];
+            // checkCudaCall(cudaMalloc((void**)&cudaGeomMap, sizeof(float) * wh));
             hostTexCofMap = new uchar[wh];
             checkCudaCall(cudaMalloc((void**)&cudaTexCofMap, sizeof(uchar) * wh));
         }
@@ -1485,12 +1475,12 @@ void PatchMatchCUDA::CudaPlanarPriorInitialization(const std::vector<float4> &Pl
     hostPlaneMask = new unsigned int[cameras[0].height * cameras[0].width];
     cudaMalloc((void**)&cudaPlaneMask, sizeof(unsigned int) * (cameras[0].height * cameras[0].width));
 
-    for (int i = 0; i < cameras[0].height; ++i){
-        for (int j = 0; j < cameras[0].width; ++j)  {
-            int idx = i * cameras[0].width + j;
-            hostPlaneMask[idx] = (unsigned int)masks(i, j);
-            if (masks(i, j) > 0) {
-                hostPriorPlanes[idx] = PlaneParams[masks(i, j) - 1];
+    for (int i = 0; i < cameras[0].width; ++i) {
+        for (int j = 0; j < cameras[0].height; ++j) {
+            int idx = j * cameras[0].width + i;
+            hostPlaneMask[idx] = (unsigned int)masks(j, i);
+            if (masks(j, i) > 0) {
+                hostPriorPlanes[idx] = PlaneParams[masks(j, i) - 1];
             }
         }
     }
@@ -1638,8 +1628,8 @@ void PatchMatchCUDA::Release(std::vector<Scene> Scenes,const int &ID)
         cudaFree(cudaPlaneMask);
     }
     if(params.geomPlanarPrior){
-        // delete[] hostGeomCosts;
-        // cudaFree(cudaGeomCosts);
+        // delete[] hostGeomMap;
+        // cudaFree(cudaGeomMap);
         delete[] hostTexCofMap;
         cudaFree(cudaTexCofMap);
     }
@@ -1654,8 +1644,8 @@ void PatchMatchCUDA::Release(std::vector<Scene> Scenes,const int &ID)
            cudaDestroyTextureObject(textureDepths[i]);
 		   cudaFreeArray(cudaDepthArrays[i]); 
         } 
-        delete[] hostGeomCosts;
-        cudaFree(cudaGeomCosts);
+        delete[] hostGeomMap;
+        cudaFree(cudaGeomMap);
         cudaFree(cudaTextureDepths);  
         
 	}

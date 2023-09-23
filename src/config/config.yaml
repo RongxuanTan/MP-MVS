@@ -1,8 +1,8 @@
 %YAML:1.0
 ---
 Input-folder: /home/xuan/MP-MVS/dense
-Output-folder: " "
-Geometric consistency iterations: 3
+Output-folder: "/home/xuan/MP-MVS/dense"
+Geometric consistency iterations: 2
 Planer prior: 1
-Geometric consistency planer prior: 0
+Geometric consistency planer prior: 1
 Sky segment: 0

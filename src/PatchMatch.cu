@@ -95,16 +95,7 @@ __device__ float4 TransformNormal(const Camera camera, float4 plane_hypothesis)
     transformed_normal.w = plane_hypothesis.w;
     return transformed_normal;
 }
-/*
-在图形中，纹理是描述表面视觉外观的一组样本。样本是一个点。也就是说，它没有尺寸（与具有物理尺寸的像素相反）。
-当使用样本来确定像素的颜色时，每个样本都位于其对应像素的中心。使用整数坐标寻址像素时，给定像素的精确中心将成为其整个数字坐标加上0.5（每个维度）的偏移量。
-换句话说，将0.5添加到纹理坐标可确保从这些坐标读取时，返回该像素的样本的确切值。
-但是，只有当纹理的filterMode设置为cudaFilterModeLinear时，从纹理中读取的值才会在像素内发生变化。在该模式下，从不在像素的中心的坐标读取返回在给定像素的样本和相邻像素的样本之间插值的值。
-所以，将0.5加到整数坐标有效地否定了cudaFilterModeLinear模式。但是，由于在纹理坐标中添加0.5会占用内核中的周期，因此最好通过将filterMode设置为cudaFilterModePoint来关闭内插。
-然后，从像素内的任何坐标读取返回该像素的确切纹理采样值，因此可以使用整数直接读取纹理采样。
-当使用cudaFilterModePoint时，如果在计算纹理坐标时涉及浮点数学，必须注意确保浮点不准确不会导致纹理坐标超出预定目标像素的范围。
-此外，正如评论提到的那样，代码中可能存在问题。将0.5f添加到纹理坐标意味着正在使用cudaFilterModeLinear模式，但该模式返回一个浮点数，而不是一个int数。
-*/
+
 __device__ void TexProcessPixel(cudaTextureObject_t *images,uchar *texMap,const int2& p,int width,int height, const PatchMatchParams params)
 {
 	if (p.x >= width || p.y >= height)
@@ -673,10 +664,8 @@ __device__ void PlaneHypothesisRefinement(const cudaTextureObject_t *images, con
             float prior = gamma + exp(- depth_diff * depth_diff / two_depth_sigma_squared) * exp(- angle_diff * angle_diff / two_angle_sigma_squared);
             float restricted_temp_cost = exp(-temp_cost * temp_cost / beta) * prior;
             if (depth_before >= params.depth_min && depth_before <= params.depth_max && restricted_temp_cost > *restricted_cost) {
-                //*depth = depth_before;
                 *PlaneHypothesis = temp_plane_hypothesis;
                 *cost = temp_cost;
-                //*restricted_cost = restricted_temp_cost;
             }
         }
         else {
@@ -702,7 +691,6 @@ __device__ void CheckerboardPropagation(const cudaTextureObject_t *images, const
     curandState* randState = &randStates[idx];
 	float4& plane = PlaneHypotheses[idx];
 
-	// adaptive sampling: 0 up-near, 1 down-near, 2 left-near, 3 right-near, 4 up-far, 5 down-far, 6 left-far, 7 right-far
 	// static constexpr int2 dirs[8][11] = {
 	// 	{{ 0,-1},{-1,-2},{ 1,-2},{-2,-3},{ 2,-3},{-3,-4},{ 3,-4}},
 	// 	{{ 0, 1},{-1, 2},{ 1, 2},{-2, 3},{ 2, 3},{-3, 4},{ 3, 4}},
@@ -780,7 +768,6 @@ __device__ void CheckerboardPropagation(const cudaTextureObject_t *images, const
 		}
 	}
 
-    // Multi-hypothesis Joint View Selection,Consider 4-neighborhood smoothness 
     float view_weights[32] = {0.0f};
     float view_selection_priors[32] = {0.0f};
     for (int i = 0; i < 4; ++i) {
@@ -815,7 +802,6 @@ __device__ void CheckerboardPropagation(const cudaTextureObject_t *images, const
             sampling_probs[i] = 0;
         }
     }
-    //PDF:probability density function  CDF:cumulative distribution function
     TransformPDFToCDF(sampling_probs, params.num_images - 1);
     for (int sample = 0; sample < 15; ++sample) {
         const float rand_prob = curand_uniform(&randStates[idx]) - FLT_EPSILON;
@@ -1143,49 +1129,6 @@ __device__ void ProjectPoint2(const float3 PointX, const Camera camera, float2 &
     point.y = (camera.K[3] * tmp.x + camera.K[4] * tmp.y + camera.K[5] * tmp.z) / depth;
 }
 
-__device__ int ComputeDepthConsistency(const cudaTextureObject_t depth_image, const Camera ref_camera, const Camera src_camera, const float4 PlaneHypothesis, const int2 p)
-{
-    float depth = ComputeDepthfromPlaneHypothesis(ref_camera, PlaneHypothesis, p);
-    float3 forward_point = BackProjectPoint2W(p.x, p.y, depth, ref_camera);
-
-    float2 src_pt;
-    ProjectPoint2(forward_point, src_camera, src_pt,depth);
-    const float src_depth = tex2D<float>(depth_image,  (int)src_pt.x + 0.5f, (int)src_pt.y + 0.5f);
-
-    float3 src_3D_pt = BackProjectPoint2W(src_pt.x, src_pt.y, src_depth, src_camera);
-
-    float2 backward_point;
-    ProjectPoint(src_3D_pt, ref_camera, backward_point);
-
-    const float diff_col = p.x - backward_point.x;
-    const float diff_row = p.y - backward_point.y;
-    const float reproj_error=sqrt(diff_col * diff_col + diff_row * diff_row);
-
-    //float4 Ref_normal = TransformNormal(cameras[0], plane_hypotheses[idx]);
-
-    if ((abs(src_depth-depth)/depth)<0.01f&&reproj_error<2.0f) {//(abs(src_depth-depth)/depth)<0.01f&&
-        return 1;
-    }
-    return 0;
-}
-
-__global__ void GetGeomConsistency(const cudaTextureObject_t *depths, Camera *cameras, float4 *PlaneHypotheses, const PatchMatchParams params,uchar *GeomMap)
-{
-    const int2 p = make_int2(blockIdx.x * blockDim.x + threadIdx.x, blockIdx.y * blockDim.y + threadIdx.y);
-    const int width = cameras[0].width;
-    const int height = cameras[0].height;
-    if (p.x >= width || p.y >= height) {
-        return;
-    }
-    const int idx = Point2Idx(p, width);
-    int geom_count=0;
-    for (int i = 1; i < params.num_images; ++i) {
-        geom_count = geom_count + ComputeDepthConsistency(depths[i],cameras[0],cameras[i],PlaneHypotheses[idx],p);
-    }
-    GeomMap[idx]=geom_count;
-
-}
-
 void PatchMatchCUDA::Run(){
     const int width=cameras[0].width;
     const int height=cameras[0].height;
@@ -1203,9 +1146,9 @@ void PatchMatchCUDA::Run(){
     cudaDeviceSynchronize();
     if(params.geom_consistency||params.planar_prior){
         for (int i = 0; i < max_iterations; ++i) {
-            BlackPixelUpdate<<<gridSizeCheckerboard, blockSize>>>(cudaTextureImages, cudaTextureDepths, cudaCameras, cudaPlaneHypotheses, cudaCosts, cudaRandStates, cudaSelectedViews, cudaPriorPlanes,cudaPlaneMask,params, i,0,cudaGeomMap);
+            BlackPixelUpdate<<<gridSizeCheckerboard, blockSize>>>(cudaTextureImages, cudaTextureDepths, cudaCameras, cudaPlaneHypotheses, cudaCosts, cudaRandStates, cudaSelectedViews, cudaPriorPlanes, cudaPlaneMask, params, i, 0, cudaGeomCosts);
             checkCudaCall(cudaDeviceSynchronize());
-            RedPixelUpdate<<<gridSizeCheckerboard, blockSize>>>(cudaTextureImages, cudaTextureDepths, cudaCameras, cudaPlaneHypotheses, cudaCosts,cudaRandStates, cudaSelectedViews, cudaPriorPlanes,cudaPlaneMask,params, i,0,cudaGeomMap);
+            RedPixelUpdate<<<gridSizeCheckerboard, blockSize>>>(cudaTextureImages, cudaTextureDepths, cudaCameras, cudaPlaneHypotheses, cudaCosts, cudaRandStates, cudaSelectedViews, cudaPriorPlanes, cudaPlaneMask, params, i, 0, cudaGeomCosts);
             checkCudaCall(cudaDeviceSynchronize());
             printf("iteration: %d/%d\n", i+1,max_iterations);
         }
@@ -1213,13 +1156,11 @@ void PatchMatchCUDA::Run(){
     else{
         for(int scale=maxscale;scale>=0;--scale)
         {
-            // params.nSizeStep=(int)pow(2.0,scale+1);
-            // params.nSizeHalfWindow=params.nSizeStep*5/2;
             printf("Scale: %d\n", scale);
             for (int i = 0; i < max_iterations; ++i) {
-                BlackPixelUpdate<<<gridSizeCheckerboard, blockSize>>>(cudaTextureImages, cudaTextureDepths, cudaCameras, cudaPlaneHypotheses, cudaCosts, cudaRandStates, cudaSelectedViews, cudaPriorPlanes, cudaPlaneMask, params, i,scale,cudaGeomMap);
+                BlackPixelUpdate<<<gridSizeCheckerboard, blockSize>>>(cudaTextureImages, cudaTextureDepths, cudaCameras, cudaPlaneHypotheses, cudaCosts, cudaRandStates, cudaSelectedViews, cudaPriorPlanes, cudaPlaneMask, params, i, scale, cudaGeomCosts);
                 checkCudaCall(cudaDeviceSynchronize());
-                RedPixelUpdate<<<gridSizeCheckerboard, blockSize>>>(cudaTextureImages, cudaTextureDepths, cudaCameras, cudaPlaneHypotheses, cudaCosts,cudaRandStates, cudaSelectedViews, cudaPriorPlanes, cudaPlaneMask, params, i,scale,cudaGeomMap);
+                RedPixelUpdate<<<gridSizeCheckerboard, blockSize>>>(cudaTextureImages, cudaTextureDepths, cudaCameras, cudaPlaneHypotheses, cudaCosts, cudaRandStates, cudaSelectedViews, cudaPriorPlanes, cudaPlaneMask, params, i, scale, cudaGeomCosts);
                 checkCudaCall(cudaDeviceSynchronize());
                 printf("iteration: %d/%d\n", i+1,max_iterations);
             }
@@ -1236,11 +1177,9 @@ void PatchMatchCUDA::Run(){
 
     checkCudaCall(cudaMemcpy(hostPlaneHypotheses, cudaPlaneHypotheses, sizeof(float4) * width * height, cudaMemcpyDeviceToHost));
     checkCudaCall(cudaMemcpy(hostCosts, cudaCosts, sizeof(float) * width * height, cudaMemcpyDeviceToHost));
-    if(params.geom_map)
-    {    
-        //GetGeomConsistency<<<gridSizeInit,blockSize>>>(cudaTextureDepths, cudaCameras,cudaPlaneHypotheses,params,cudaGeomMap);
-        //checkCudaCall(cudaDeviceSynchronize());
-        checkCudaCall(cudaMemcpy(hostGeomMap, cudaGeomMap, sizeof(float)*width*height, cudaMemcpyDeviceToHost));
+    if(params.geomPlanarPrior)
+    {
+        checkCudaCall(cudaMemcpy(hostGeomCosts, cudaGeomCosts, sizeof(float) * width * height, cudaMemcpyDeviceToHost));
         // TextureConfMap<<<gridSizeInit,blockSize>>>(cudaTextureImages,cudaTexCofMap,width,height,params);
         // checkCudaCall(cudaDeviceSynchronize());
         // checkCudaCall(cudaMemcpy(hostTexCofMap, cudaTexCofMap, sizeof(uchar)*width*height, cudaMemcpyDeviceToHost));

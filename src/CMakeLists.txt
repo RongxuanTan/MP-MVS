@@ -40,8 +40,8 @@ cuda_add_executable(
     PatchMatch.h 
     PatchMatch.cu 
     main.cpp
-    FileIO.h
-    FileIO.cpp
+        utility.h
+        utility.cpp
     )
 
 # For linking ...

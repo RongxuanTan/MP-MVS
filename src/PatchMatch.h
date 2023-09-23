@@ -2,7 +2,7 @@
 #define _PATCHMATCH_H_
 
 #include "main.h"
-#include "FileIO.h"
+#include "utility.h"
 #include <cstdarg>
 //#include "benchmark.h"
 //#include "datareader.h"
@@ -45,7 +45,7 @@ struct PatchMatchParams {
     float scaled_rows;
 
     bool geom_consistency = false;
-    bool geom_map=false;
+    bool geomPlanarPrior=false;
     bool planar_prior = false;
 };
 
@@ -74,7 +74,7 @@ float3 Get3DPointonWorld(const int x, const int y, const float depth, const Came
 float GetAngle(const cv::Vec3f &v1, const cv::Vec3f &v2);
 void ProjectonCamera(const float3 PointX, const Camera camera, float2 &point, float &depth);
 void  RescaleImageAndCamera(cv::Mat_<cv::Vec3b> &src, cv::Mat_<cv::Vec3b> &dst, cv::Mat_<float> &depth, Camera &camera);
-void RunFusion(std::string &dense_folder, const std::vector<Scene> &Scenes,bool sky_mask);
+void RunFusion(std::string &dense_folder, std::string &out_folder, const std::vector<Scene> &Scenes,bool sky_mask);
 
 class PatchMatchCUDA
 {
@@ -105,8 +105,8 @@ private:
 
     uchar *cudaTexCofMap;
     uchar *hostTexCofMap;
-    float *cudaGeomMap;
-    float *hostGeomMap;
+    float *cudaGeomCosts;
+    float *hostGeomCosts;
 
     PatchMatchParams params;
 
@@ -115,6 +115,7 @@ private:
 public:
 
     //.cpp
+
     void SetGeomConsistencyParams(bool geom_consistency,bool planar_prior);
     void SetPlanarPriorParams();
     void SetFolder(const std::string &_input_folder,const std::string &_output_folder);
@@ -139,10 +140,8 @@ public:
     std::vector<Triangle> DelaunayTriangulation(const cv::Rect boundRC, const std::vector<cv::Point>& points);
     void GetTriangulateVertices(std::vector<cv::Point>& Vertices);
 
-
     void Release(std::vector<Scene> Scenes,const int &ID);
 
-    //.cu
     void Run();
 };
 

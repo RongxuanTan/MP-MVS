@@ -1,20 +1,20 @@
-#ifndef _FILEIO_H_
-#define _FILEIO_H_
-#include "main.h"
+#ifndef _UTILITY_H_
+#define _UTILITY_H_
 #include "PatchMatch.h"
 #include <dirent.h>
+#include <Eigen/Dense>
 
 struct ConfigParams
 {
     std::string input_folder;
     std::string output_folder;
-    std::string GT_folder;
+    //std::string GT_folder;
     int geom_iterations;
     bool geom_consistency;
     bool planar_prior;
-    bool gp;
+    bool geomPlanarPrior;
     bool sky_seg;
-    bool dmap_eval;
+    //bool dmap_eval;
 };
 void checkpath(std::string &path);
 ConfigParams readConfig(const std::string yaml_path);
