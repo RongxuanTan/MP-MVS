@@ -1,4 +1,8 @@
 # MVS
+
+## Dependencies
+*OpenCV
+*CUDA
 ## Usage
 ```
 mkdir build  
