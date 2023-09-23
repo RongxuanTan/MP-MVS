@@ -17,7 +17,6 @@ cmake ../src
 make  
 ```
 ### RUN
-
 ```
 Use script colmap2mvsnet_acm.py to convert COLMAP SfM result to ACMMP input 
 ```
