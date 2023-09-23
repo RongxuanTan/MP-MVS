@@ -11,14 +11,24 @@ Please modify line 20 of the CMakeLists.txt based on the GPU architecture of you
 ```
 ### Build
 ```
+git clone https://github.com/RongxuanTan/MP-MVS.git
+cd MP-MVS
 mkdir build  
 cd build  
-cmake ../src  
+cmake ..    
 make  
 ```
-### RUN
+### Config.yaml
+If it is an indoor scene (especially if it is a weakly textured scene), set it to 1. If it is an outdoor scene (including sky area), set it to 0. It is not recommended to use it unless sky area detection is added.  
+`Geometric consistency planer prior`: Whether to use geometric consistency to construct planar prior model
+
+### Run
 ```
-Use script colmap2mvsnet_acm.py to convert COLMAP SfM result to MPMVS input 
+//Use script colmap2mvsnet_acm.py to convert COLMAP SfM result to MPMVS input
+python colmap2mvsnet_acm.py --dense_folder xxx --save_folder xxx
+//Once in the build folder, execute the executable file
+./MPMVS
+
 ```
 ## Acknowledgemets
 This code is developed on the basis of [ACMMP](https://github.com/GhiXu/ACMMP#acmmp) and [OpenMVS](https://github.com/cdcseacave/openMVS). Thanks to their authors for opening source of their excellent works.
