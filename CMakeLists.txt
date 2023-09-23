@@ -9,14 +9,12 @@ include_directories(${OpenCV_INCLUDE_DIRS})
 find_package(Eigen3 REQUIRED)
 
 include_directories(${EIGEN3_INCLUDE_DIRS})
-set(ncnn_DIR "/home/xuan/ncnn/build/install/lib/cmake/ncnn")
-set(NCNN_INCLUDE_DIRS /ncnn/build/install/include)
-find_package(ncnn REQUIRED)
+#set(ncnn_DIR "/home/xuan/ncnn/build/install/lib/cmake/ncnn")
+#set(NCNN_INCLUDE_DIRS /ncnn/build/install/include)
+#find_package(ncnn REQUIRED)
 
 include_directories(${NCNN_INCLUDE_DIRS})
 
-#-arch: 指定nvcc编译目标GPU的型号
-#-code：选项指定了nvcc最后阶段生成的运行时代码的目标架构
 set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-O3 --use_fast_math --maxrregcount=128 --ptxas-options=-v -std=c++11 --compiler-options -Wall -gencode arch=compute_80,code=sm_80)
 message(“CUDA_NVCC_FLAGS:” ${CUDA_NVCC_FLAGS})
 if(CMAKE_COMPILER_IS_GNUCXX)
@@ -35,13 +33,13 @@ endif()
 # Specify target & source files to compile it from
 cuda_add_executable(
     MPMVS
-    main.h    
-    PatchMatch.cpp 
-    PatchMatch.h 
-    PatchMatch.cu 
-    main.cpp
-        utility.h
-        utility.cpp
+        src/main.h    
+        src/PatchMatch.cpp 
+        src/PatchMatch.h 
+        src/PatchMatch.cu 
+        src/main.cpp
+        src/utility.h
+        src/utility.cpp
     )
 
 # For linking ...

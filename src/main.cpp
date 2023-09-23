@@ -6,7 +6,7 @@ using namespace std;
 
 std::vector<Scene> Scenes;
 int main(int argc,char *argv[]){
-    std::string yaml_path="/home/xuan/MP-MVS/src/config/config.yaml";
+    std::string yaml_path="/home/xuan/MP-MVS/config/config.yaml";
     ConfigParams config=readConfig(yaml_path);
 
     mkdir(config.output_folder.c_str(), 0777);
