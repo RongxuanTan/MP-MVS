@@ -11,6 +11,8 @@ Please modify line 20 of the CMakeLists.txt based on the GPU architecture of you
 ```
 ### Build
 ```
+git clone https://github.com/RongxuanTan/MP-MVS.git
+cd MP-MVS
 mkdir build  
 cd build  
 cmake ../src  
