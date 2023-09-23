@@ -16,11 +16,14 @@ cd build
 cmake ../src  
 make  
 ```
+### config.yaml
+If it is an indoor scene (especially if it is a textured scene), set it to 1. If it is an outdoor scene (including sky area), set it to 0. It is not recommended to use it unless sky area detection is added.  
+`Geometric consistency planer prior`: Whether to use geometric consistency to construct planar prior model
 ### Run
 ```
 //Use script colmap2mvsnet_acm.py to convert COLMAP SfM result to MPMVS input
 python colmap2mvsnet_acm.py --dense_folder xxx --save_folder xxx
-//cd ./build ,
+//Once in the build folder, execute the executable file
 ./MPMVS
 
 ```
