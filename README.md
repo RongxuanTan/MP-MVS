@@ -9,13 +9,17 @@ Please modify line 20 of the CMakeLists.txt based on the GPU architecture of you
 ```
 20 set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-O3 --use_fast_math --maxrregcount=128 --ptxas-options=-v -std=c++11 --compiler-options -Wall -gencode arch=compute_80,code=sm_80)
 ```
-### build
+### Build
 ```
 mkdir build  
 cd build  
 cmake ../src  
 make  
-./MPMVS
+```
+###RUN
+
+```
+Use script colmap2mvsnet_acm.py to convert COLMAP SfM result to ACMMP input 
 ```
 ## Acknowledgemets
 This code is developed on the basis of [ACMMP](https://github.com/GhiXu/ACMMP#acmmp) and [OpenMVS](https://github.com/cdcseacave/openMVS). Thanks to their authors for opening source of their excellent works.
