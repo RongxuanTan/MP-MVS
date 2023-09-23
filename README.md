@@ -16,7 +16,7 @@ cd build
 cmake ../src  
 make  
 ```
-### RUN
+### Run
 ```
 Use script colmap2mvsnet_acm.py to convert COLMAP SfM result to MPMVS input 
 ```
