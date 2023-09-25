@@ -31,6 +31,8 @@
 #include <sys/time.h>
 #include <unistd.h>
 
+#include "PatchMatch.h"
+#include "utility.h"
 
 class Time
 {

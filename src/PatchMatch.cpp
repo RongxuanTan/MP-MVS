@@ -981,9 +981,9 @@ void ProcessProblem(const std::string &input_folder,const std::string &output_fo
     std::stringstream result_path;
     result_path << output_folder << "/2333_" << std::setw(8) << std::setfill('0') << scene.refID;
     std::string result_folder = result_path.str();
-    //std::cout<<result_folder<<std::endl;
     mkdir(result_folder.c_str(), 0777);
 
+    //Run PatchMatch
     PatchMatchCUDA MP;
     MP.SetFolder(input_folder,output_folder);
     MP.SetGeomConsistencyParams(geom_consistency,planar_prior);
@@ -991,6 +991,7 @@ void ProcessProblem(const std::string &input_folder,const std::string &output_fo
     MP.AllocatePatchMatch();
     MP.CudaMemInit(Scenes[ID]);
     MP.Run();
+
     const int width = MP.GetReferenceImageWidth();
     const int height = MP.GetReferenceImageHeight();
 
@@ -1003,25 +1004,27 @@ void ProcessProblem(const std::string &input_folder,const std::string &output_fo
         MP.SetPlanarPriorParams();
         MP.SetGeomConsistencyParams(false,true);
         const cv::Rect imageRC(0, 0, width, height);
+
         std::vector<cv::Point> Vertices;
         MP.GetTriangulateVertices(Vertices);
         const auto triangles = MP.DelaunayTriangulation(imageRC, Vertices);
+
         cv::Mat refImage = MP.GetReferenceImage().clone();
         std::vector<cv::Mat> mbgr(3);
         mbgr[0] = refImage.clone();
         mbgr[1] = refImage.clone();
         mbgr[2] = refImage.clone();
-        cv::Mat srcImage;
-        cv::merge(mbgr, srcImage);
+        cv::Mat image_tri;
+        cv::merge(mbgr, image_tri);
         for (const auto triangle : triangles) {
             if (imageRC.contains(triangle.pt1) && imageRC.contains(triangle.pt2) && imageRC.contains(triangle.pt3)) {
-                cv::line(srcImage, triangle.pt1, triangle.pt2, cv::Scalar(0, 0, 255));
-                cv::line(srcImage, triangle.pt1, triangle.pt3, cv::Scalar(0, 0, 255));
-                cv::line(srcImage, triangle.pt2, triangle.pt3, cv::Scalar(0, 0, 255));
+                cv::line(image_tri, triangle.pt1, triangle.pt2, cv::Scalar(0, 0, 255));
+                cv::line(image_tri, triangle.pt1, triangle.pt3, cv::Scalar(0, 0, 255));
+                cv::line(image_tri, triangle.pt2, triangle.pt3, cv::Scalar(0, 0, 255));
             }
         }
         std::string triangulation_path = result_folder + "/triangulation.png";
-        cv::imwrite(triangulation_path, srcImage);
+        cv::imwrite(triangulation_path, image_tri);
 
         cv::Mat_<float> mask_tri = cv::Mat::zeros(height, width, CV_32FC1);
         std::vector<float4> planeParams_tri;
@@ -1048,17 +1051,16 @@ void ProcessProblem(const std::string &input_folder,const std::string &output_fo
                 // estimate plane parameter
                 float4 n4 = MP.GetPriorPlaneParams(triangle,width);
                 planeParams_tri.push_back(n4);
-                idx++;
+                ++idx;
             }
         }
 
-        cv::Mat_<float> priordepths = cv::Mat::zeros(height, width, CV_32FC1);
+        //cv::Mat_<float> priordepths = cv::Mat::zeros(height, width, CV_32FC1);
         for (int i = 0; i < width; ++i) {
             for (int j = 0; j < height; ++j) {
                 if (mask_tri(j, i) > 0) {
                     float d = MP.GetDepthFromPlaneParam(planeParams_tri[mask_tri(j, i) - 1], i, j);
                     if (d <= MP.GetMaxDepth() && d >= MP.GetMinDepth()) {
-                        continue;
                         //priordepths(j, i) = d;
                     }
                     else {
@@ -1072,7 +1074,7 @@ void ProcessProblem(const std::string &input_folder,const std::string &output_fo
         MP.CudaPlanarPriorInitialization(planeParams_tri, mask_tri);
         std::cout << "..." << std::endl;
         MP.Run();
-        MP.SetGeomConsistencyParams(geom_consistency,planar_prior);
+        MP.SetGeomConsistencyParams(geom_consistency, planar_prior);
 
     }
     for (int row = 0; row < height; ++row) {
@@ -1100,7 +1102,7 @@ void ProcessProblem(const std::string &input_folder,const std::string &output_fo
     //     cv::imwrite(texcof_path,TexCofMap);
     std::cout << "Processing image " << std::setw(8) << std::setfill('0') << scene.refID << " done!" << std::endl;
 
-    MP.Release(Scenes,ID);
+    MP.Release(Scenes, ID);
 }
 
 float PatchMatchCUDA::GetMinDepth()
@@ -1175,13 +1177,10 @@ float4 PatchMatchCUDA::GetPriorPlaneParams(const Triangle triangle,int width)
 {
     cv::Mat A(3, 4, CV_32FC1);
     cv::Mat B(4, 1, CV_32FC1);
-    // float3 ptX1 = Get3DPointonRefCam(triangle.pt1.x, triangle.pt1.y, depths(triangle.pt1.y, triangle.pt1.x), cameras[0]);
-    // float3 ptX2 = Get3DPointonRefCam(triangle.pt2.x, triangle.pt2.y, depths(triangle.pt2.y, triangle.pt2.x), cameras[0]);
-    // float3 ptX3 = Get3DPointonRefCam(triangle.pt3.x, triangle.pt3.y, depths(triangle.pt3.y, triangle.pt3.x), cameras[0]);
     float3 ptX1 = Get3DPointonRefCam(triangle.pt1.x, triangle.pt1.y, GetPlaneHypothesis(triangle.pt1.y * width + triangle.pt1.x).w, cameras[0]);
     float3 ptX2 = Get3DPointonRefCam(triangle.pt2.x, triangle.pt2.y, GetPlaneHypothesis(triangle.pt2.y * width + triangle.pt2.x).w, cameras[0]);
     float3 ptX3 = Get3DPointonRefCam(triangle.pt3.x, triangle.pt3.y, GetPlaneHypothesis(triangle.pt3.y * width + triangle.pt3.x).w, cameras[0]);    
-    //计算平面参数
+
     A.at<float>(0, 0) = ptX1.x;
     A.at<float>(0, 1) = ptX1.y;
     A.at<float>(0, 2) = ptX1.z;
@@ -1215,14 +1214,13 @@ std::vector<Triangle> PatchMatchCUDA::DelaunayTriangulation(const cv::Rect bound
     }
 
     std::vector<Triangle> results;
-
     std::vector<cv::Vec6f> temp_results;
-    //创建三角剖分对象
+
     cv::Subdiv2D subdiv2d(boundRC);
-    for (const auto point : points) {//插入三角剖分顶点
+    for (const auto point : points) {
         subdiv2d.insert(cv::Point2f((float)point.x, (float)point.y));
     }
-    //计算剖分结果
+
     subdiv2d.getTriangleList(temp_results);
 
     for (const auto temp_vec : temp_results) {
@@ -1240,19 +1238,21 @@ void PatchMatchCUDA::GetTriangulateVertices(std::vector<cv::Point>& Vertices){
     const int width = GetReferenceImageWidth();
     const int height = GetReferenceImageHeight();
     if(!params.geomPlanarPrior){
-        for (int col = 0; col < width; col += step_size) {
-            for (int row = 0; row < height; row += step_size) {
+        for (int row = 0; row < height; row += step_size) {
+            for (int col = 0; col < width; col += step_size) {
                 float min_cost = 2.0f;
                 cv::Point temp_point;
                 int c_bound = std::min(width, col + step_size);
                 int r_bound = std::min(height, row + step_size);
-                for (int c = col; c < c_bound; ++c) {
-                    for (int r = row; r < r_bound; ++r) {
-                        int idx = r * width + c;
-                        if (GetCost(idx) < 2.0f && min_cost > GetCost(idx)) {
+                for (int r = row; r < r_bound; ++r) {
+                    int idx = r * width + col;
+                    for (int c = col; c < c_bound; ++c) {
+                        float cost = GetCost(idx);
+                        if (cost < 2.0f && min_cost > cost) {
                             temp_point = cv::Point(c, r);
-                            min_cost = GetCost(idx);
+                            min_cost = cost;
                         }
+                        ++idx;
                     }
                 }
                 if(min_cost < 0.1f)
@@ -1260,19 +1260,18 @@ void PatchMatchCUDA::GetTriangulateVertices(std::vector<cv::Point>& Vertices){
             }
         }
     }else{
-        for (int col = 0; col < width; col += step_size) {
-            for (int row = 0; row < height; row += step_size) {
+        for (int row = 0; row < height; row += step_size) {
+            for (int col = 0; col < width; col += step_size) {
                 float minCosts[3] = {2.0f,2.0f,2.0f};
                 std::vector<cv::Point> points(3);
                 cv::Point temp_point;
                 int c_bound = std::min(width, col + step_size);
                 int r_bound = std::min(height, row + step_size);
-                for (int c = col; c < c_bound; ++c) {
-                    for (int r = row; r < r_bound; ++r) {
-                        int idx = r * width + c;
+                for (int r = row; r < r_bound; ++r) {
+                    int idx = r * width + col;
+                    for (int c = col; c < c_bound; ++c) {
                         float cost = GetCost(idx);
-                        if (cost < 0.16f && ( GetGeomCount(idx)< 0.3f) && cost < minCosts[2]){
-                            //
+                        if (cost < 0.16f && GetGeomCount(idx)< 0.3f && cost < minCosts[2]){
                             minCosts[2] = cost;
                             points[2] = cv::Point(c, r);
                             for(int i = 1; i >= 0; --i){
@@ -1287,6 +1286,7 @@ void PatchMatchCUDA::GetTriangulateVertices(std::vector<cv::Point>& Vertices){
                                 points[i] = tp;
                             }
                         }
+                        ++idx;
                     }
                 }
                 for(int i = 0; i <3; ++i){
@@ -1314,9 +1314,6 @@ void PatchMatchCUDA::PatchMatchInit(std::vector<Scene> Scenes,const int ID){
     DataInit();
     Scene& scene = Scenes[ID];
     size_t n = scene.srcID.size();
-
-    //images.resize(n+1);
-    //cameras.resize(n+1);
 
     //set images and camera data
     std::string image_folder = input_folder + std::string("/images");
@@ -1499,45 +1496,32 @@ void PatchMatchCUDA::CudaPlanarPriorInitialization(const std::vector<float4> &Pl
 }
 
 void PatchMatchCUDA::CudaMemInit(Scene &scene){
-    //分配cuda图像内存空间，创建纹理内存以及纹理绑定
     for(int i=0;i<num_img;++i){
         int rows=images[i].rows;
         int cols=images[i].cols;
-        //纹理内存
-        //定义纹理具体内容
+
         const cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindFloat);
-        //分配GPU内存空间
         checkCudaCall(cudaMallocArray(&cudaImageArrays[i], &channelDesc, cols, rows));
-        //(二维)线性内存到2维数组的拷贝
         checkCudaCall(cudaMemcpy2DToArray(cudaImageArrays[i],0,0, images[i].ptr<float>(), images[i].step[0], cols*sizeof(float), rows, cudaMemcpyHostToDevice));
-        
-        //创建资源描述符
+
         struct cudaResourceDesc resDesc;
         memset(&resDesc, 0, sizeof(cudaResourceDesc));
         resDesc.resType = cudaResourceTypeArray;
         resDesc.res.array.array = cudaImageArrays[i];
 
-        //创建纹理描述符
         struct cudaTextureDesc texDesc;
         memset(&texDesc, 0, sizeof(cudaTextureDesc));
-        //纹理访问超出边界时的处理方式
-        //cudaAddressModeClamp模式：坐标超出范围返回边缘值、cudaAddressModeBorder模式：坐标超出范围则返回 0、
-        //cudaAddressModeWrap 和 cudaAddressModeMirror模式：将图像看成周期函数进行循环访问，并且Mirror为镜像循环 (即 “123123“ 和 “123321”) 
         texDesc.addressMode[0] = cudaAddressModeWrap;
         texDesc.addressMode[1] = cudaAddressModeWrap;
         texDesc.filterMode = cudaFilterModeLinear;
-        // cudaReadModeElementType为默认方式，cudaReadModeNormalizedFloat 将整型归一化为单精度浮点类型 [-1,1] 或 [0,1]。
         texDesc.readMode  = cudaReadModeElementType;
         texDesc.normalizedCoords = 0;
 
         checkCudaCall(cudaCreateTextureObject(&textureImages[i], &resDesc, &texDesc, NULL));
         //cudaError_t cudaMemcpy2DToArray (struct cudaArray *  	dst,size_t  wOffset,size_t  hOffset,const void *  src,size_t  spitch,size_t  width,size_t 	height,enum cudaMemcpyKind 	kind)
-        
-        
     }
-    //纹理内存图像
+
     checkCudaCall(cudaMemcpy(cudaTextureImages, textureImages.data(), sizeof(cudaTextureObject_t)*num_img, cudaMemcpyHostToDevice));
-    //相机参数
     checkCudaCall(cudaMemcpy(cudaCameras, cameras.data(), sizeof(Camera)*num_img, cudaMemcpyHostToDevice));
     
     if(params.geom_consistency){
@@ -1547,14 +1531,12 @@ void PatchMatchCUDA::CudaMemInit(Scene &scene){
             const cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindFloat);
             checkCudaCall(cudaMallocArray(&cudaDepthArrays[i], &channelDesc, cols, rows));
             checkCudaCall(cudaMemcpy2DToArray(cudaDepthArrays[i],0,0, depths[i].ptr<float>(), depths[i].step[0], cols*sizeof(float), rows, cudaMemcpyHostToDevice));
-            
-            //创建资源描述符
+
             struct cudaResourceDesc resDesc;
             memset(&resDesc, 0, sizeof(cudaResourceDesc));
             resDesc.resType = cudaResourceTypeArray;
             resDesc.res.array.array = cudaDepthArrays[i];
 
-            //创建纹理描述符
             struct cudaTextureDesc texDesc;
             memset(&texDesc, 0, sizeof(cudaTextureDesc));
             texDesc.addressMode[0] = cudaAddressModeWrap;
@@ -1638,8 +1620,6 @@ void PatchMatchCUDA::Release(std::vector<Scene> Scenes,const int &ID)
         cudaFree(cudaPlaneMask);
     }
     if(params.geomPlanarPrior){
-        // delete[] hostGeomCosts;
-        // cudaFree(cudaGeomCosts);
         delete[] hostTexCofMap;
         cudaFree(cudaTexCofMap);
     }

@@ -822,7 +822,7 @@ __device__ void CheckerboardPropagation(const cudaTextureObject_t *images, const
         if (view_weights[i] > 0) {
             setBit(temp_selected_views, i);
             weight_norm += view_weights[i];
-            num_selected_view++;
+            ++num_selected_view;
         }
     }
 
@@ -1132,7 +1132,7 @@ __device__ void ProjectPoint2(const float3 PointX, const Camera camera, float2 &
 void PatchMatchCUDA::Run(){
     const int width=cameras[0].width;
     const int height=cameras[0].height;
-    int maxscale=params.max_scale;
+    int maxScale=params.max_scale;
     int BLOCK_W = 32;
     int BLOCK_H = (BLOCK_W / 2);
     const dim3 blockSize(BLOCK_W,BLOCK_H,1);
@@ -1140,28 +1140,31 @@ void PatchMatchCUDA::Run(){
 	const dim3 gridSizeCheckerboard((width + BLOCK_W - 1) / BLOCK_W, ((height / 2) + BLOCK_H - 1) / BLOCK_H, 1);
 
     int max_iterations = params.max_iterations;
-    
-    //深度图初始化
-    InitializeScore<<<gridSizeInit,blockSize>>>(cudaTextureImages,cudaCameras,cudaPlaneHypotheses,cudaCosts,cudaRandStates,cudaSelectedViews,cudaPriorPlanes,cudaPlaneMask,params,maxscale);
+
+    InitializeScore<<<gridSizeInit,blockSize>>>(cudaTextureImages, cudaCameras, cudaPlaneHypotheses, cudaCosts, cudaRandStates, cudaSelectedViews, cudaPriorPlanes, cudaPlaneMask, params, maxScale);
     cudaDeviceSynchronize();
-    if(params.geom_consistency||params.planar_prior){
+    if(params.geom_consistency || params.planar_prior){
         for (int i = 0; i < max_iterations; ++i) {
             BlackPixelUpdate<<<gridSizeCheckerboard, blockSize>>>(cudaTextureImages, cudaTextureDepths, cudaCameras, cudaPlaneHypotheses, cudaCosts, cudaRandStates, cudaSelectedViews, cudaPriorPlanes, cudaPlaneMask, params, i, 0, cudaGeomCosts);
             checkCudaCall(cudaDeviceSynchronize());
+
             RedPixelUpdate<<<gridSizeCheckerboard, blockSize>>>(cudaTextureImages, cudaTextureDepths, cudaCameras, cudaPlaneHypotheses, cudaCosts, cudaRandStates, cudaSelectedViews, cudaPriorPlanes, cudaPlaneMask, params, i, 0, cudaGeomCosts);
             checkCudaCall(cudaDeviceSynchronize());
+
             printf("iteration: %d/%d\n", i+1,max_iterations);
         }
     }
     else{
-        for(int scale=maxscale;scale>=0;--scale)
+        for(int scale = maxScale; scale >= 0; --scale)
         {
             printf("Scale: %d\n", scale);
             for (int i = 0; i < max_iterations; ++i) {
                 BlackPixelUpdate<<<gridSizeCheckerboard, blockSize>>>(cudaTextureImages, cudaTextureDepths, cudaCameras, cudaPlaneHypotheses, cudaCosts, cudaRandStates, cudaSelectedViews, cudaPriorPlanes, cudaPlaneMask, params, i, scale, cudaGeomCosts);
                 checkCudaCall(cudaDeviceSynchronize());
+
                 RedPixelUpdate<<<gridSizeCheckerboard, blockSize>>>(cudaTextureImages, cudaTextureDepths, cudaCameras, cudaPlaneHypotheses, cudaCosts, cudaRandStates, cudaSelectedViews, cudaPriorPlanes, cudaPlaneMask, params, i, scale, cudaGeomCosts);
                 checkCudaCall(cudaDeviceSynchronize());
+
                 printf("iteration: %d/%d\n", i+1,max_iterations);
             }
         }
@@ -1172,6 +1175,7 @@ void PatchMatchCUDA::Run(){
     
     BlackPixelFilter<<<gridSizeCheckerboard, blockSize>>>(cudaCameras, cudaPlaneHypotheses, cudaCosts);
     checkCudaCall(cudaDeviceSynchronize());
+
     RedPixelFilter<<<gridSizeCheckerboard, blockSize>>>(cudaCameras, cudaPlaneHypotheses, cudaCosts);
     checkCudaCall(cudaDeviceSynchronize());
 

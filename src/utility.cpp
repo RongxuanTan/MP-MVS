@@ -86,7 +86,7 @@ bool GTVisualize(cv::Mat_<float> &depth)
     cv::applyColorMap(uint_dmb,color_dmb,cv::COLORMAP_JET);
     
     Colormap2Bgr(color_dmb,bgr_img,mask);
-    cv::imwrite("/home/xuan/MP-MVS/result/GT.jpg",bgr_img);
+    //cv::imwrite("/home/xuan/MP-MVS/result/GT.jpg",bgr_img);
 
     cv::namedWindow("dmap", (800,1200));
     cv::imshow("dmap",bgr_img);
@@ -152,7 +152,6 @@ bool readColmapDmap(const std::string file_path, cv::Mat_<float> &depth)
     }
 
     int32_t h, w, nb;
-
 
     fread(&h,sizeof(int32_t),1,inimage);
     fread(&w,sizeof(int32_t),1,inimage);
@@ -296,7 +295,7 @@ void NormalVisualize(float4 *Plane,const int width,const int height){
     }
     std::cout<<normal.at<cv::Vec3f>(0, 0)<<std::endl;
     cv::namedWindow("normal", (800,1200));
-    cv::imwrite("/home/xuan/MP-MVS/result/normal.jpg",normal);
+    //cv::imwrite("/home/xuan/MP-MVS/result/normal.jpg",normal);
     cv::imshow("normal",normal);
     cv::waitKey(0);
 }
@@ -304,10 +303,10 @@ void NormalVisualize(float4 *Plane,const int width,const int height){
 
 void GetHist(cv::Mat gray,cv::Mat &Hist)
 {
-    const int channels[1] = { 0 }; //通道索引
-    float inRanges[2] = { 0,255 };  //像素范围
-    const float* ranges[1] = {inRanges};//像素灰度级范围
-    const int bins[1] = { 256 };   //直方图的维度
+    const int channels[1] = { 0 };
+    float inRanges[2] = { 0,255 };
+    const float* ranges[1] = {inRanges};
+    const int bins[1] = { 256 };
     cv::calcHist(&gray, 1, channels,cv::Mat(), Hist,1, bins, ranges);
     //std::cout<<Hist<<std::endl;
     //ShowHist(Hist);
@@ -316,17 +315,16 @@ void GetHist(cv::Mat gray,cv::Mat &Hist)
 
 void ShowHist(cv::Mat &Hist)
 {
-    //准备绘制直方图
     int hist_w = 512;
     int hist_h = 400;
     int width = 2;
-    cv::Mat histImage = cv::Mat::zeros(hist_h,hist_w,CV_8UC3);   //准备histImage为全黑背景色，大小为512*400
+    cv::Mat histImage = cv::Mat::zeros(hist_h,hist_w,CV_8UC3);
     for (int i = 0; i < Hist.rows; i++)
     {
         cv::rectangle(histImage,cv::Point(width*(i),hist_h-1),cv::Point(width*(i+1),hist_h-cvRound(Hist.at<float>(i)/20)),
-        cv::Scalar(255,255,255),-1);//cvRound取整数
+        cv::Scalar(255,255,255),-1);
     }
-    cv::imwrite("/home/xuan/MP-MVS/result/hist.jpg",histImage);
+    //cv::imwrite("/home/xuan/MP-MVS/result/hist.jpg",histImage);
     cv::namedWindow("histImage", cv::WINDOW_AUTOSIZE);
     cv::imshow("histImage", histImage);
     cv::waitKey(0);
@@ -372,35 +370,25 @@ void Colormap2Bgr(cv::Mat &src,cv::Mat &dst,cv::Mat &mask){
 
 bool DmbVisualize(cv::Mat_<float> &depth,const std::string name)
 {
-    if(depth.empty())  //判断是否有数据
+    if(depth.empty())
     {   
         std::cout<<"Can not read this depth image !"<<std::endl;  
         exit(0);
     }
-    double max,min=0,real_min=1000,real_max=20;
+    double max, min=0;
     const int rows=depth.rows;
     const int cols=depth.cols;
     cv::Mat mask = cv::Mat::ones(depth.size(), CV_8UC1);
     for(int i=0;i<rows;++i){
         for(int j=0;j<cols;++j){
             const float val=depth.at<float>(i,j);
-            if(val>110)
-            depth.at<float>(i,j)=110;
-            if(val>0)
-                if(val<real_min)
-                    real_min=(double)val;
-        }
-    }
-    for(int i=0;i<rows;++i){
-        for(int j=0;j<cols;++j){
-            const float val=depth.at<float>(i,j);
             if(val<=0.0){
-                mask.at<uchar>(i,j)=0;
-                depth.at<float>(i,j)=real_min;
+                mask.at<uchar>(i,j) = 0;
+                depth.at<float>(i,j) = 0;
             }
             else{
-                mask.at<uchar>(i,j)=255;
-             }
+                mask.at<uchar>(i,j) = 255;
+            }
         }
     }
     cv::Point maxLoc;
@@ -408,9 +396,9 @@ bool DmbVisualize(cv::Mat_<float> &depth,const std::string name)
     cv::minMaxLoc(depth, &min, &max, &minLoc, &maxLoc);
     std::cout<<"min:"<<min<<"  max:"<<max<<std::endl;
 
-    double inv_max=1/(max-min+1e-8);    
-    cv::Mat norm_dmb=depth-min;
-    norm_dmb=norm_dmb*inv_max;
+    double inv_max = 1 / (max-min+1e-8);
+    cv::Mat norm_dmb= depth - min;
+    norm_dmb = norm_dmb * inv_max;
 
     cv::Mat uint_dmb;
     int32_t num_min=0,num_max=0;
@@ -435,27 +423,28 @@ bool DmbVisualize(cv::Mat_<float> &depth,const std::string name)
     int down= getMin10(Hist, rows * cols);
     std::cout<<"top:"<<top<<std::endl;
     std::cout<<"down:"<<down<<std::endl;
-    double new_min=real_min+(max-real_min)*((float)top/256.0);
-    double new_max=real_min+(max-real_min)*((float)down/256.0);
+    double new_min = min + (max - min)*((float)top / 256.0);
+    double new_max = min + (max - min)*((float)down / 256.0);
     for(int i=0;i<rows;++i){
         for(int j=0;j<cols;++j){
-            const float val=depth.at<float>(i,j);
+            const float val = depth.at<float>(i,j);
             if(val<new_min){
-                depth.at<float>(i,j)=new_min;
+                depth.at<float>(i,j) = new_min;
+                continue;
             }
             if(val>new_max)
-                depth.at<float>(i,j)=new_max;
+                depth.at<float>(i,j) = new_max;
         }
     }
-    inv_max=1/(new_max-new_min+1e-8); 
-    norm_dmb=depth-new_min+1e-8;
-    norm_dmb=norm_dmb*inv_max;
+    inv_max = 1 / ( new_max - new_min + 1e-8);
+    norm_dmb = depth - new_min + 1e-8;
+    norm_dmb = norm_dmb * inv_max;
     norm_dmb.convertTo(uint_dmb,CV_8UC3,255.0);
     cv::Mat temp;
     cv::applyColorMap(uint_dmb,temp,cv::COLORMAP_JET);
-    cv::Mat bgr_img2=cv::Mat::zeros(rows,cols,CV_8UC3); 
+    cv::Mat bgr_img2 = cv::Mat::zeros(rows,cols,CV_8UC3);
     Colormap2Bgr(temp,bgr_img2,mask);
-    cv::imwrite("/home/xuan/MP-MVS/result/"+name,bgr_img2);
+    //cv::imwrite("/home/xuan/MP-MVS/result/"+name,bgr_img2);
     cv::namedWindow("dmap", (800,1200));
     cv::imshow("dmap",bgr_img2);
     cv::waitKey(0);   
