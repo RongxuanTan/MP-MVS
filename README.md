@@ -1,5 +1,5 @@
 # MVS
-This code was developed on Ubuntu. This code improves on [ACMMP](https://github.com/GhiXu/ACMMP#acmmp), and the main differences can be found in MP-MVS:Multi-Scale Windows PatchMatch
+This code was developed on Ubuntu. This code improves on [ACMMP](https://github.com/GhiXu/ACMMP#acmmp), and the main differences can be found in [MP-MVS:Multi-Scale Windows PatchMatch](https://arxiv.org/abs/2309.13294)
 and Planar Prior Multi-View Stereo.
 ## Dependencies
 * OpenCV >= 2.4  
