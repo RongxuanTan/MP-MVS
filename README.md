@@ -11,6 +11,10 @@ Please modify CMakeLists.txt based on the GPU architecture of your device. Modif
 ```
 set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-O3 --use_fast_math --maxrregcount=128 --ptxas-options=-v -std=c++11 --compiler-options -Wall -gencode arch=compute_80,code=sm_80)
 ```
+If ncnn is compiled, set the path：
+```
+set(ncnn_DIR "../ncnn/build/install/lib/cmake/ncnn")
+```
 ### Build
 ```
 git clone https://github.com/RongxuanTan/MP-MVS.git
@@ -33,6 +37,7 @@ make
 ### Config.yaml
 If it is an indoor scene (especially if it is a weakly textured scene), set it to 1. If it is an outdoor scene (including sky area), set it to 0. It is not recommended to use it unless sky area detection is added.  
 `Geometric consistency planer prior`: Whether to use geometric consistency to construct planar prior model
+
 The code and models for sky detection were derived from [Owner avatar Sky-Segmentation-and-Post-processing ](https://github.com/xiongzhu666/Sky-Segmentation-and-Post-processing).
 `Sky segment`: Whether to use sky area detection to eliminate sky artifacts
 
