@@ -15,6 +15,7 @@ ConfigParams readConfig(std::string yaml_path){
     fs["Planer prior"] >> config.planar_prior;
     fs["Geometric consistency planer prior"] >> config.geomPlanarPrior;
     fs["Sky segment"] >> config.sky_seg;
+    fs["Use dynamic_consistency to fuse"] >> config.use_dynamic_consistency;
 
     fs["Save Dmb as JPG"] >> config.saveDmb;
     fs["Save Prior Dmb as JPG"] >> config.saveProirDmb;

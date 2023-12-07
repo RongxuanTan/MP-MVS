@@ -33,10 +33,10 @@ int main(int argc,char *argv[]) {
     printf("cost time is %.10f us\n", time.cost());
 #ifdef BUILD_NCNN
     if(config.sky_seg)
-        GenerateSkyRegionMask(Scenes, project_path, config.input_folder, config.MaxImageSize);
+        GenerateSkyRegionMask(Scenes, project_path, config);
 #endif
 
-    RunFusion(config.input_folder,config.output_folder, Scenes,config.sky_seg, false);
+    RunFusion(config, Scenes);
 
     if (config.saveDmb || config.saveProirDmb || config.saveCostDmb || config.saveNormalDmb) {
         saveDmbAsJpg(config, num_img, true);

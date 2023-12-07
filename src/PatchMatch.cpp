@@ -1,11 +1,11 @@
 #include "PatchMatch.h"
 
 #ifdef BUILD_NCNN
-void GenerateSkyRegionMask(std::vector<Scene> &Scenes, std::string &project_path, std::string &dense_folder, const int max_image_size){
+void GenerateSkyRegionMask(std::vector<Scene> &Scenes, std::string &project_path, const ConfigParams &config){
     std::string param_path = project_path + "/segment_model/skysegsmall_sim-opt-fp16.param";
     std::string model_path = project_path + "/segment_model/skysegsmall_sim-opt-fp16.bin";
     SkySegment Skyseg(param_path.data(),model_path.data());
-
+    std::string dense_folder = config.input_folder;
     std::string image_folder = dense_folder + std::string("/images");
     int n=Scenes.size();
     for(int i=0;i<n;++i){
@@ -18,7 +18,7 @@ void GenerateSkyRegionMask(std::vector<Scene> &Scenes, std::string &project_path
         }
         cv::Mat opencv_mask = Skyseg.maskExtractor(dst);
 
-        //
+        const int max_image_size = config.MaxImageSize;
         int w = bgr.cols;
         int h = bgr.rows;
         if(bgr.cols>max_image_size||bgr.rows>max_image_size)
@@ -267,8 +267,12 @@ void  RescaleImageAndCamera(cv::Mat_<cv::Vec3b> &src, cv::Mat_<cv::Vec3b> &dst, 
     camera.height = rows;
 }
 
-void RunFusion(const std::string &dense_folder, const std::string &out_folder, const std::vector<Scene> &Scenes, bool sky_mask, bool use_prior_map){
+void RunFusion(const ConfigParams &config, const std::vector<Scene> &Scenes){//const ConfigParams &config
     size_t num_images = Scenes.size();
+    const std::string dense_folder = config.input_folder;
+    const std::string out_folder = config.output_folder;
+    bool sky_seg = config.sky_seg;
+    bool Use_dynamic_consistency = config.use_dynamic_consistency;
     std::string image_folder = dense_folder + std::string("/images");
     std::string cam_folder = dense_folder + std::string("/cams");
 
@@ -281,12 +285,7 @@ void RunFusion(const std::string &dense_folder, const std::string &out_folder, c
     cameras.clear();
     depths.clear();
     normals.clear();
-    masks.clear();
-
-    std::vector<cv::Mat> prior_depths;
-    std::vector<cv::Mat_<cv::Vec3f>> prior_normals;
-    prior_depths.clear();
-    prior_normals.clear();
+    masks.clear();;
     
     std::map<int, int> image_id_2_index;
 
@@ -328,7 +327,8 @@ void RunFusion(const std::string &dense_folder, const std::string &out_folder, c
     for (size_t i = 0; i < num_images; ++i) {
         std::cout << "Fusing image " << std::setw(8) << std::setfill('0') << i << "..." << std::endl;
         cv::Mat skymask;
-         if(sky_mask){
+#ifdef BUILD_NCNN
+         if(sky_seg){
              std::stringstream result_path;
              result_path << dense_folder << "/MPMVS" << "/2333_" << std::setw(8) << std::setfill('0') << Scenes[i].refID;
              std::string mask_path =result_path.str()+ "/skymask_refine.jpg";
@@ -342,6 +342,7 @@ void RunFusion(const std::string &dense_folder, const std::string &out_folder, c
              }
             
          }
+#endif
 
         const int cols = depths[i].cols;
         const int rows = depths[i].rows;
@@ -349,13 +350,14 @@ void RunFusion(const std::string &dense_folder, const std::string &out_folder, c
         std::vector<int2> used_list(num_ngb, make_int2(-1, -1));
         for (int r =0; r < rows; ++r) {
             for (int c = 0; c < cols; ++c) {
-                if(sky_mask && skymask.at<float>(r,c)!=0){
+                if (masks[i].at<uchar>(r, c) == 1)
+                    continue;
+#ifdef BUILD_NCNN
+                if(sky_seg && skymask.at<float>(r, c) != 0){
                      masks[i].at<uchar>(r, c) = 1;
                      continue;
                 }
-
-                if (masks[i].at<uchar>(r, c) == 1)
-                    continue;
+#endif
 
                 float ref_depth = depths[i].at<float>(r, c);
                 if (ref_depth <= 0.0 )
@@ -394,11 +396,11 @@ void RunFusion(const std::string &dense_folder, const std::string &out_folder, c
                         float2 tmp_pt;
                         ProjectonCamera(tmp_X, cameras[i], tmp_pt, proj_depth);
                         float reproj_error = sqrt(pow(c - tmp_pt.x, 2) + pow(r - tmp_pt.y, 2));
-                        if (reproj_error > 2.0f)
+                        if (reproj_error >= 2.0f)
                             continue;
 
                         float relative_depth_diff = fabs(proj_depth - ref_depth) / ref_depth;
-                        if(relative_depth_diff > 0.01f)
+                        if(relative_depth_diff >= 0.01f)
                             continue;
 
                         float angle = GetAngle(ref_normal, src_normal);
@@ -410,13 +412,24 @@ void RunFusion(const std::string &dense_folder, const std::string &out_folder, c
                             float cons = exp(-tmp_index);
                             dynamic_consistency += exp(-tmp_index);
                             num_consistent++;
-//                            used_list[j].x = src_c;
-//                            used_list[j].y = src_r;
-//                            num_consistent++;
                         }
                     }
                 }
-                if (num_consistent >= 2 ) {//num_consistent >= 1 && (dynamic_consistency > 0.3 * num_consistent)//num_consistent >= 2
+                if(Use_dynamic_consistency){
+                    if(num_consistent >= 1 && (dynamic_consistency > 0.3 * num_consistent)){
+                        PointList point3D;
+                        point3D.coord = consistent_Point;
+                        point3D.normal = make_float3(consistent_normal[0], consistent_normal[1], consistent_normal[2]);
+                        point3D.color = make_float3(consistent_Color[0], consistent_Color[1], consistent_Color[2]);
+                        PointCloud.push_back(point3D);
+
+                        for (int j = 1; j < num_ngb; ++j) {
+                            if (used_list[j].x == -1)
+                                continue;
+                            masks[image_id_2_index[Scenes[i].srcID[j]]].at<uchar>(used_list[j].y, used_list[j].x) = 1;
+                        }
+                    }
+                }else if(num_consistent >= 2){
                     PointList point3D;
                     point3D.coord = consistent_Point;
                     point3D.normal = make_float3(consistent_normal[0], consistent_normal[1], consistent_normal[2]);
@@ -430,7 +443,6 @@ void RunFusion(const std::string &dense_folder, const std::string &out_folder, c
                     }
                 }
             }
-            
         }
         // std::stringstream ply_path ;
         // ply_path  << out_folder<< "/" << std::setw(8) << std::setfill('0') << Scenes[i].refID << ".ply";

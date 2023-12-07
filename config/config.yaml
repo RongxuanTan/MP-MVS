@@ -5,7 +5,8 @@ Output-folder: "/home/xuan/MP-MVS/result/dense"
 Geometric consistency iterations: 2
 Planer prior: 1
 Geometric consistency planer prior: 1
-Sky segment: 1
+Sky segment: 0
+Use dynamic_consistency to fuse: 1
 
 #transform dmb as jpg
 Save Dmb as JPG: 0

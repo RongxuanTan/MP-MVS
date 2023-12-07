@@ -31,6 +31,7 @@ struct ConfigParams
     bool planar_prior;
     bool geomPlanarPrior;
     bool sky_seg;
+    bool use_dynamic_consistency;
 
     bool saveDmb;
     bool saveProirDmb;

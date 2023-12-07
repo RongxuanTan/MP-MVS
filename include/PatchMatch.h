@@ -70,7 +70,7 @@ struct Triangle {
     cv::Point pt1, pt2, pt3;
     Triangle (const cv::Point _pt1, const cv::Point _pt2, const cv::Point _pt3) : pt1(_pt1) , pt2(_pt2), pt3(_pt3) {}
 };
-void GenerateSkyRegionMask(std::vector<Scene> &Scenes, std::string &project_path, std::string &dense_folder, const int max_image_size);
+void GenerateSkyRegionMask(std::vector<Scene> &Scenes, std::string &project_path, const ConfigParams &config);
 void checkCudaCall(const cudaError_t error);
 void GenerateSampleList(const ConfigParams &config, std::vector<Scene> &Scenes);
 Camera ReadCamera(const std::string &cam_path);
@@ -82,7 +82,7 @@ cv::Vec3f TransformNormalonWorld(const Camera camera, cv::Vec3f normal);
 float GetAngle(const cv::Vec3f &v1, const cv::Vec3f &v2);
 void ProjectonCamera(const float3 PointX, const Camera camera, float2 &point, float &depth);
 void  RescaleImageAndCamera(cv::Mat_<cv::Vec3b> &src, cv::Mat_<cv::Vec3b> &dst, cv::Mat_<float> &depth, Camera &camera);
-void RunFusion(const std::string &dense_folder, const std::string &out_folder, const std::vector<Scene> &Scenes, bool sky_mask, bool use_prior_map);
+void RunFusion(const ConfigParams &config, const std::vector<Scene> &Scenes);
 
 class PatchMatchCUDA
 {
