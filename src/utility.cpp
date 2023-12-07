@@ -9,18 +9,24 @@ ConfigParams readConfig(std::string yaml_path){
     ConfigParams config;
     cv::FileStorage fs(yaml_path, cv::FileStorage::READ);
 
-    fs["Input-folder"]>>config.input_folder;
-    fs["Output-folder"]>>config.output_folder;
-    fs["Geometric consistency iterations"]>>config.geom_iterations;
-    fs["Planer prior"]>>config.planar_prior;
-    fs["Geometric consistency planer prior"]>>config.geomPlanarPrior;
-    fs["Sky segment"]>>config.sky_seg;
-    //fs["depth map eval"]>>config.dmap_eval;
-    //fs["depth map eval folder"]>>config.GT_folder;
+    fs["Input-folder"] >> config.input_folder;
+    fs["Output-folder"] >> config.output_folder;
+    fs["Geometric consistency iterations"] >> config.geom_iterations;
+    fs["Planer prior"] >> config.planar_prior;
+    fs["Geometric consistency planer prior"] >> config.geomPlanarPrior;
+    fs["Sky segment"] >> config.sky_seg;
+
+    fs["Save Dmb as JPG"] >> config.saveDmb;
+    fs["Save Prior Dmb as JPG"] >> config.saveProirDmb;
+    fs["Save Cost Map"] >> config.saveCostDmb;
+    fs["Save Normal Map"] >> config.saveCostDmb;
+
+    fs["Max source images num"] >> config.MaxSourceImageNum;
+    fs["Max image size"] >> config.MaxImageSize;
 
     checkpath(config.input_folder);
     checkpath(config.output_folder);
-    config.output_folder=config.output_folder+"/MPMVS";
+    config.output_folder = config.output_folder+"/MPMVS";
     std::cout<<"Input data path:"<<config.input_folder<<std::endl;
     std::cout<<"Output data path:"<<config.output_folder<<std::endl;
 
@@ -148,7 +154,7 @@ bool readColmapDmap(const std::string file_path, cv::Mat_<float> &depth)
     inimage = fopen(file_path.c_str(), "rb");
     if (!inimage){
         std::cout << "Error opening file " << file_path << std::endl;
-        return {};
+        exit(1);
     }
 
     int32_t h, w, nb;
@@ -283,23 +289,17 @@ int writeNormalDmb(const std::string file_path, const cv::Mat_<cv::Vec3f> &norma
     return 0;
 }
 
-void NormalVisualize(float4 *Plane,const int width,const int height){
-    cv::Mat normal(height, width, CV_32FC3);;
-    for(int i=0;i<height;++i){
-    for(int j=0;j<width;++j){
-        const int wh=i * width + j;
-        normal.at<cv::Vec3f>(i, j)[0]=Plane[wh].x;
-        normal.at<cv::Vec3f>(i, j)[1]=Plane[wh].y;
-        normal.at<cv::Vec3f>(i, j)[2]=Plane[wh].z;
-        }  
+void SaveNormal(cv::Mat_<cv::Vec3f> &normal, const std::string save_path, float k = 255.0){
+    normal = normal * k;
+    const int cols = normal.cols;
+    const int rows = normal.rows;
+    for(int i = 0; i < rows; ++i){
+        for(int j = 0; j < cols; ++j){
+            normal.at<cv::Vec3f>(i, j)[1] = -normal.at<cv::Vec3f>(i, j)[1];
+        }
     }
-    std::cout<<normal.at<cv::Vec3f>(0, 0)<<std::endl;
-    cv::namedWindow("normal", (800,1200));
-    //cv::imwrite("/home/xuan/MP-MVS/result/normal.jpg",normal);
-    cv::imshow("normal",normal);
-    cv::waitKey(0);
+    cv::imwrite(save_path,normal);
 }
-
 
 void GetHist(cv::Mat gray,cv::Mat &Hist)
 {
@@ -368,12 +368,12 @@ void Colormap2Bgr(cv::Mat &src,cv::Mat &dst,cv::Mat &mask){
     }
 }
 
-bool DmbVisualize(cv::Mat_<float> &depth,const std::string name)
+bool SaveDmb(cv::Mat_<float> &depth, const std::string save_path, bool hist_enhance = false)
 {
     if(depth.empty())
-    {   
-        std::cout<<"Can not read this depth image !"<<std::endl;  
-        exit(0);
+    {
+        std::cout<<"Can not read this depth image !"<<std::endl;
+        return false;
     }
     double max, min=0;
     const int rows=depth.rows;
@@ -394,35 +394,30 @@ bool DmbVisualize(cv::Mat_<float> &depth,const std::string name)
     cv::Point maxLoc;
     cv::Point minLoc;
     cv::minMaxLoc(depth, &min, &max, &minLoc, &maxLoc);
-    std::cout<<"min:"<<min<<"  max:"<<max<<std::endl;
+//    std::cout<<"min:"<<min<<"  max:"<<max<<std::endl;
 
     double inv_max = 1 / (max-min+1e-8);
-    cv::Mat norm_dmb= depth - min;
+    cv::Mat norm_dmb = depth - min;
     norm_dmb = norm_dmb * inv_max;
 
     cv::Mat uint_dmb;
     int32_t num_min=0,num_max=0;
     norm_dmb.convertTo(uint_dmb,CV_8UC3,255.0);
-    // cv::namedWindow("dmap", (800,1200));
-    // cv::imshow("dmap",uint_dmb);
-    // cv::waitKey(0); 
-    // cv::Mat bgr_img=cv::Mat::zeros(rows,cols,CV_8UC3);    
-    // cv::applyColorMap(uint_dmb,color_dmb,cv::COLORMAP_JET);
-    
-    // Colormap2Bgr(color_dmb,bgr_img,mask);
-    // cv::imwrite("/home/xuan/MP-MVS/result/dmb.jpg",bgr_img);
 
-    // cv::namedWindow("dmap", (800,1200));
-    // cv::imshow("dmap",bgr_img);
-    // cv::waitKey(0);   
+    if(!hist_enhance) {
+        cv::Mat bgr_img=cv::Mat::zeros(rows,cols,CV_8UC3);
+        cv::Mat color_dmb;
+        cv::applyColorMap(uint_dmb,color_dmb,cv::COLORMAP_JET);
+        Colormap2Bgr(color_dmb,bgr_img,mask);
+        cv::imwrite(save_path,bgr_img);
+        return true;
+    }
 
     //使用直方图增加对比度
     cv::Mat Hist;
     GetHist(uint_dmb,Hist);
     int top= getMax10(Hist, rows * cols);
     int down= getMin10(Hist, rows * cols);
-    std::cout<<"top:"<<top<<std::endl;
-    std::cout<<"down:"<<down<<std::endl;
     double new_min = min + (max - min)*((float)top / 256.0);
     double new_max = min + (max - min)*((float)down / 256.0);
     for(int i=0;i<rows;++i){
@@ -444,23 +439,61 @@ bool DmbVisualize(cv::Mat_<float> &depth,const std::string name)
     cv::applyColorMap(uint_dmb,temp,cv::COLORMAP_JET);
     cv::Mat bgr_img2 = cv::Mat::zeros(rows,cols,CV_8UC3);
     Colormap2Bgr(temp,bgr_img2,mask);
-    //cv::imwrite("/home/xuan/MP-MVS/result/"+name,bgr_img2);
-    cv::namedWindow("dmap", (800,1200));
-    cv::imshow("dmap",bgr_img2);
-    cv::waitKey(0);   
+    cv::imwrite(save_path,bgr_img2);
 
 }
 
-bool CostVisualize(cv::Mat_<float> &cost)
+bool SaveCost(cv::Mat_<float> &cost, const std::string save_path)
 {
+    if(cost.empty())
+    {
+        std::cout<<"Can not read this cost image !"<<std::endl;
+        return false;
+    }
     cv::Mat uint_dmb;
     cost.convertTo(uint_dmb,CV_8U,255.0/2.0);
 
-    cv::imwrite("/home/xuan/MP-MVS/result/cost.jpg",uint_dmb);
+    cv::imwrite(save_path,uint_dmb);
+    return true;
+}
 
-    cv::namedWindow("dmap", (800,1200));
-    cv::imshow("dmap",uint_dmb);
-    cv::waitKey(0);   
-
+void saveDmbAsJpg(ConfigParams &config, size_t num_images, bool hist_enhance = true){
+    std::string dense_folder = config.input_folder;
+    std::string image_folder = dense_folder + std::string("/images");
+    std::string cam_folder = dense_folder + std::string("/cams");
+    std::cout << "Start save data as jpg" << std::endl;
+    for (size_t i = 0; i < num_images; ++i) {
+        std::stringstream read_folder;
+        read_folder << dense_folder << "/MPMVS" << "/2333_" << std::setw(8) << std::setfill('0') << i;
+        if(config.saveDmb){
+            std::string depth_path = read_folder.str() + "/depths.dmb";
+            std::string save_path = read_folder.str() + "/depths.jpg";
+            cv::Mat_<float> dmap;
+            readDepthDmb(depth_path, dmap);
+            SaveDmb(dmap, save_path, hist_enhance);
+        }
+        if(config.saveProirDmb && (config.planar_prior || config.geomPlanarPrior)){
+            std::string depth_path = read_folder.str() + "/depths_prior.dmb";
+            std::string save_path = read_folder.str() + "/depths_prior.jpg";
+            cv::Mat_<float> dmap;
+            readDepthDmb(depth_path, dmap);
+            SaveDmb(dmap, save_path, hist_enhance);
+        }
+        if(config.saveCostDmb){
+            std::string cost_path = read_folder.str() + "/costs.dmb";
+            std::string save_path = read_folder.str() + "/costs.jpg";
+            cv::Mat_<float> cost;
+            readDepthDmb(cost_path, cost);
+            SaveCost(cost, save_path);
+        }
+        if(config.saveNormalDmb){
+            std::string normal_path = read_folder.str() + "/normals.dmb";
+            std::string save_path = read_folder.str() + "/normals.jpg";
+            cv::Mat_<cv::Vec3f> normal;
+            readNormalDmb(normal_path,normal);
+            SaveNormal(normal, save_path, 255.0);
+        }
+    }
+    std::cout << "save data success" << std::endl;
 }
 

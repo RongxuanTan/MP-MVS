@@ -1,8 +1,17 @@
 %YAML:1.0
 ---
-Input-folder: /home/xuan/MP-MVS/dense
-Output-folder: "/home/xuan/MP-MVS/dense"
+Input-folder: "/home/xuan/MP-MVS/result/dense"
+Output-folder: "/home/xuan/MP-MVS/result/dense"
 Geometric consistency iterations: 2
 Planer prior: 1
 Geometric consistency planer prior: 1
-Sky segment: 0
+Sky segment: 1
+
+#transform dmb as jpg
+Save Dmb as JPG: 0
+Save Prior Dmb as JPG: 0
+Save Cost Map: 0
+Save Normal Map: 0
+
+Max source images num: 20
+Max image size: 3200
