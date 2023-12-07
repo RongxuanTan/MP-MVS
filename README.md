@@ -3,7 +3,8 @@ This code improves on [ACMMP](https://github.com/GhiXu/ACMMP#acmmp), and the mai
 
 ## Dependencies
 * OpenCV >= 2.4  
-* CUDA >= 6.0   
+* CUDA >= 6.0
+* ncnn(option) If you want to generate sky masks
 ## Usage
 ### CMakeLists.txt
 Please modify CMakeLists.txt based on the GPU architecture of your device. Modify `arch=compute_80,code=sm_80` to `arch=compute_XX,code=sm_XX` and save. If you don't know the corresponding configuration of your device, please see [it](https://arnon.dk/matching-sm-architectures-arch-and-gencode-for-various-nvidia-cards/).
@@ -19,9 +20,21 @@ cd build
 cmake ..    
 make  
 ```
+
+If you have ncnn installed, run the following command：
+```
+git clone https://github.com/RongxuanTan/MP-MVS.git
+cd MP-MVS
+mkdir build  
+cd build  
+cmake .. -D USE_NCNN=ON
+make  
+```
 ### Config.yaml
 If it is an indoor scene (especially if it is a weakly textured scene), set it to 1. If it is an outdoor scene (including sky area), set it to 0. It is not recommended to use it unless sky area detection is added.  
 `Geometric consistency planer prior`: Whether to use geometric consistency to construct planar prior model
+The code and models for sky detection were derived from [Owner avatar Sky-Segmentation-and-Post-processing ](https://github.com/xiongzhu666/Sky-Segmentation-and-Post-processing).
+`Sky segment`: Whether to use sky area detection to eliminate sky artifacts
 
 ### Run
 ```
