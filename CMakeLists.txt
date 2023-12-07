@@ -43,7 +43,6 @@ include_directories(
 )
 if(USE_NCNN)
     add_definitions(-DBUILD_NCNN)
-    set(ncnn_DIR "/home/xuan/ncnn/build/install/lib/cmake/ncnn")
     find_package(ncnn REQUIRED)
     add_subdirectory(./SkySegment)
 endif ()
