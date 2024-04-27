@@ -1,6 +1,8 @@
 #ifndef _UTILITY_H_
 #define _UTILITY_H_
 
+#include <sys/stat.h>
+
 #include "opencv2/calib3d/calib3d.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
 #include "opencv2/core/core.hpp"
@@ -11,9 +13,11 @@
 #include <dirent.h>
 #include <Eigen/Dense>
 
+
 struct Scene
 {
     /* data */
+    bool estimate = false;
     int refID;
     std::vector<int> srcID;
     cv::Mat image;
@@ -45,6 +49,7 @@ struct ConfigParams
 void checkpath(std::string &path);
 ConfigParams readConfig(const std::string yaml_path);
 bool readGT(const std::string file_path, cv::Mat_<float> &depth);
+bool GTVisualize(cv::Mat_<float> &depth, std::string path);
 void GetFileNames(std::string path,std::vector<std::string>& filenames);
 void GetSubFileNames(std::string path,std::vector<std::string>& filenames);
 bool GTVisualize(cv::Mat_<float> &depth);
@@ -61,7 +66,7 @@ int getTop10(cv::Mat Hist);
 int getDown10(cv::Mat Hist);
 void Colormap2Bgr(cv::Mat &src,cv::Mat &dst,cv::Mat &mask);
 bool SaveCost(cv::Mat_<float> &cost, const std::string save_path);
-bool SaveDmb(cv::Mat_<float> &depth, const std::string save_path, bool hist_enhance);
+bool SaveDmb(const cv::Mat_<float> &depth_, const std::string save_path, bool hist_enhance);
 void saveDmbAsJpg(ConfigParams &config, size_t num_images, bool hist_enhance);
 void SaveNormal(cv::Mat_<cv::Vec3f> &normal, const std::string save_path, float k );
 

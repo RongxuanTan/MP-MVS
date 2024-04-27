@@ -15,11 +15,17 @@ int main(int argc,char *argv[]) {
 
     Time time;
     time.start();
-    //Multi-Scale windows PatchMatch
-    bool planar_prior = !config.geomPlanarPrior && config.planar_prior;
-    for(int i = 0; i < num_img; ++i)
-        ProcessProblem(config.input_folder, config.output_folder, Scenes, i, false, planar_prior);
 
+    //Multi-Scale Windows PatchMatch
+    bool planar_prior = !config.geomPlanarPrior && config.planar_prior;
+    for(int i = 0; i < num_img; ++i){
+        if(Scenes[i].estimate != true){
+            continue;
+        }
+        ProcessProblem(config.input_folder, config.output_folder, Scenes, i, false, planar_prior);
+    }
+
+    //geom_consistency && planar_prior
     planar_prior = config.planar_prior;
     for (int geom_iter = 0; geom_iter < config.geom_iterations; ++geom_iter) {
         if(config.geomPlanarPrior && geom_iter != config.geom_iterations - 1)
@@ -27,17 +33,21 @@ int main(int argc,char *argv[]) {
         else
             planar_prior = false;
         for (size_t i = 0; i < num_img; ++i) {
+            if(Scenes[i].estimate != true){
+                continue;
+            }
             ProcessProblem(config.input_folder, config.output_folder, Scenes, i,true, planar_prior);
         }
     }
     printf("cost time is %.10f us\n", time.cost());
 #ifdef BUILD_NCNN
+    //sky filter
     if(config.sky_seg)
         GenerateSkyRegionMask(Scenes, project_path, config);
 #endif
 
     RunFusion(config, Scenes);
-
+    //save dmb as jpg
     if (config.saveDmb || config.saveProirDmb || config.saveCostDmb || config.saveNormalDmb) {
         saveDmbAsJpg(config, num_img, true);
     }

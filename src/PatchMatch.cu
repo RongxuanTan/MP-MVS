@@ -117,7 +117,7 @@ __device__ void TexProcessPixel(cudaTextureObject_t *images,uchar *texMap,const 
     const int ind=Point2Idx(p,width);
     uchar cost=((uchar)var_ref);
     cost=cost<255?cost:255;
-    texMap[ind]= cost >= 40 ? 255 : 0;
+    texMap[ind]= cost >= 25 ? 255 : 0;
 }
 
 
@@ -125,14 +125,49 @@ __global__ void TextureConfMap(cudaTextureObject_t *images,uchar *texMap,int wid
     int2 p = make_int2(blockIdx.x * blockDim.x + threadIdx.x, blockIdx.y * blockDim.y + threadIdx.y);
     TexProcessPixel(images,texMap,p,width,height,params);
 }
-//no problem
+__device__ void OffsetProcessPixel(uchar *texMap,const int2& p,int width,int height, const PatchMatchParams params,uchar *offset){
+    if (p.x >= width || p.y >= height)
+        return;
+    int off = 1;
+    bool findborder = false;
+    static constexpr int2 dirs[8]= {
+	 	{ -1,0},{-1,-1},{ 0,-1},{1,-1},
+         { 1,0},{1,1},{ 0,1},{-1,1}
+    };
+    while(!findborder){
+        for(int i = 0; i < 8; ++i){
+            const int2& offset = dirs[i];
+            const int2 np=make_int2(p.x + offset.x * off, p.y + offset.y * off);
+            if (!(np.x>=0 && np.y>=0 && np.x<width && np.y<height)){
+                findborder = true;
+                break;
+            }
+            const int nidx = Point2Idx(np, width);
+            const uchar ntex = texMap[nidx];
+            if(ntex == 255){
+                findborder = true;
+                break;
+            }
+        }
+        if(!findborder)
+            ++off;
+    }
+    const int idx = Point2Idx(p, width);
+    offset[idx] = off >= 7 ? off - 7 : 0;
+}
+__global__ void ComputeOffset(uchar *texMap,int width,int height, const PatchMatchParams params, uchar *offset){
+    int2 p = make_int2(blockIdx.x * blockDim.x + threadIdx.x, blockIdx.y * blockDim.y + threadIdx.y);
+    OffsetProcessPixel(texMap,p,width,height,params,offset);
+}
+
 __device__ void GetPointI2C(const Camera camera, const int2 p, const float depth, float *X)
 {
     X[0] = depth * (p.x - camera.K[2]) / camera.K[0];
     X[1] = depth * (p.y - camera.K[5]) / camera.K[4];
     X[2] = depth;
 }
-//no problem
+
+
 __device__ float GetPlane2Origin(const Camera camera, const int2 p, const float depth, const float4 normal)
 {
     float X[3];
@@ -140,7 +175,7 @@ __device__ float GetPlane2Origin(const Camera camera, const int2 p, const float 
     return -(normal.x * X[0] + normal.y * X[1] + normal.z * X[2]);
 }
 
-//no problem 
+
 __device__ float4 GetViewDirection(const Camera camera, const int2 p){
     float4 view_direction;
     view_direction.x = (p.x - camera.K[2]) / camera.K[0];
@@ -158,7 +193,7 @@ __device__ void NormalizeVec3 (float4 *vec)
     vec->y *= inverse_sqrt;
     vec->z *= inverse_sqrt;
 }
-//no problem 
+
 __device__ float4 GenerateRandomNormal(const Camera camera, const int2 p, curandState *randState){
     float q1, q2, s;
 	do {
@@ -182,7 +217,7 @@ __device__ float4 GenerateRandomNormal(const Camera camera, const int2 p, curand
     NormalizeVec3(&normal);
     return normal;
 }
-//no problem 
+
 __device__ float4 GenerateRandomPlaneHypothesis(const Camera camera, const int2 p, curandState *randState, const float depth_min, const float depth_max){
     float4 PlaneHypothesis = GenerateRandomNormal(camera, p, randState);//随机生成法向量
     float depth = curand_uniform(randState) * (depth_max - depth_min) + depth_min;//随机生成深度
@@ -609,7 +644,6 @@ __device__ void PlaneHypothesisRefinement(const cudaTextureObject_t *images, con
     float perturbation = 0.02f;
     float depth_rand;
     float4 PlaneHypothesisRand;
-
     const int idx = p.y * cameras[0].width + p.x;
     float gamma = 0.5f;
     float depth_sigma = (params.depth_max - params.depth_min) / 64.0f;
@@ -618,6 +652,7 @@ __device__ void PlaneHypothesisRefinement(const cudaTextureObject_t *images, con
     float two_angle_sigma_squared = 2 * angle_sigma * angle_sigma;
     float beta = 0.18f;
     float depth_prior = 0.0f;
+
     if (params.planar_prior && PlaneMask[idx] > 0){
         depth_prior = ComputeDepthfromPlaneHypothesis(cameras[0], PriorPlanes[idx], p);
         depth_rand = curand_uniform(rand_state) * 6 * depth_sigma + (depth_prior - 3 * depth_sigma);
@@ -626,7 +661,6 @@ __device__ void PlaneHypothesisRefinement(const cudaTextureObject_t *images, con
         depth_rand = curand_uniform(rand_state) * (params.depth_max - params.depth_min) + params.depth_min;
         PlaneHypothesisRand = GenerateRandomNormal(cameras[0], p, rand_state);
     }
-    
 
     float depth_perturbed = *depth;
     const float depth_min_perturbed = (1 - perturbation) * depth_perturbed;
@@ -687,7 +721,7 @@ __device__ void PlaneHypothesisRefinement(const cudaTextureObject_t *images, con
     }
 }
 
-__device__ void CheckerboardPropagation(const cudaTextureObject_t *images, const cudaTextureObject_t *depths, const uchar *texMap, const Camera *cameras, float4 *PlaneHypotheses, float *costs, curandState *randStates, unsigned int *selected_views, float4 *PriorPlanes, unsigned int *PlaneMask, const int2 p, const PatchMatchParams params, const int iter,const int scale,float *GeomCost)
+__device__ void CheckerboardPropagation(const cudaTextureObject_t *images, const cudaTextureObject_t *depths, const Camera *cameras, float4 *PlaneHypotheses, float *costs, curandState *randStates, unsigned int *selected_views, float4 *PriorPlanes, unsigned int *PlaneMask, const int2 p, const PatchMatchParams params, const int iter,const int scale,float *GeomCost)
 {
     int width = cameras[0].width;
     int height = cameras[0].height;
@@ -699,17 +733,17 @@ __device__ void CheckerboardPropagation(const cudaTextureObject_t *images, const
     curandState* randState = &randStates[idx];
 	float4& plane = PlaneHypotheses[idx];
 
-	// static constexpr int2 dirs[8][11] = {
-	// 	{{ 0,-1},{-1,-2},{ 1,-2},{-2,-3},{ 2,-3},{-3,-4},{ 3,-4}},
-	// 	{{ 0, 1},{-1, 2},{ 1, 2},{-2, 3},{ 2, 3},{-3, 4},{ 3, 4}},
-	// 	{{-1, 0},{-2,-1},{-2, 1},{-3,-2},{-3, 2},{-4,-3},{-4, 3}},
-	// 	{{ 1, 0},{ 2,-1},{ 2, 1},{ 3,-2},{ 3, 2},{ 4,-3},{ 4, 3}},
-	// 	{{0,-3},{0,-5},{0,-7},{0,-9},{0,-11},{0,-13},{0,-15},{0,-17},{0,-19},{0,-21},{0,-1}},
-	// 	{{0, 3},{0, 5},{0, 7},{0, 9},{0, 11},{0, 13},{0, 15},{0, 17},{0, 19},{0, 21},{0, 1}},
-	// 	{{-3,0},{-5,0},{-7,0},{-9,0},{-11,0},{-13,0},{-15,0},{-17,0},{-19,0},{-21,0},{-1,0}},
-	// 	{{ 3,0},{ 5,0},{ 7,0},{ 9,0},{ 11,0},{ 13,0},{ 15,0},{ 17,0},{ 19,0},{ 21,0},{ 1,0}}
-	// };
-    // static constexpr int numDirs[8] = {7, 7, 7, 7, 11, 11, 11, 11};
+//	 static constexpr int2 dirs[8][11] = {
+//	 	{{ 0,-1},{-1,-2},{ 1,-2},{-2,-3},{ 2,-3},{-3,-4},{ 3,-4},{-4,-5},{ 4,-5}},
+//	 	{{ 0, 1},{-1, 2},{ 1, 2},{-2, 3},{ 2, 3},{-3, 4},{ 3, 4},{-4, 5},{ 4, 5}},
+//	 	{{-1, 0},{-2,-1},{-2, 1},{-3,-2},{-3, 2},{-4,-3},{-4, 3},{-5,-4},{-5, 4}},
+//	 	{{ 1, 0},{ 2,-1},{ 2, 1},{ 3,-2},{ 3, 2},{ 4,-3},{ 4, 3},{ 5,-4},{ 5, 4}},
+//	 	{{0,-3},{0,-5},{0,-7},{0,-9},{0,-11},{0,-13},{0,-15},{0,-17},{0,-19},{0,-21},{0,-1}},
+//	 	{{0, 3},{0, 5},{0, 7},{0, 9},{0, 11},{0, 13},{0, 15},{0, 17},{0, 19},{0, 21},{0, 1}},
+//	 	{{-3,0},{-5,0},{-7,0},{-9,0},{-11,0},{-13,0},{-15,0},{-17,0},{-19,0},{-21,0},{-1,0}},
+//	 	{{ 3,0},{ 5,0},{ 7,0},{ 9,0},{ 11,0},{ 13,0},{ 15,0},{ 17,0},{ 19,0},{ 21,0},{ 1,0}}
+//	 };
+//     static constexpr int numDirs[8] = {9, 9, 9, 9, 11, 11, 11, 11};
     // static constexpr int2 dirs[8][13] = {
     // {{ 6, 5},{ 7, 6},{ 8, 7},{ 9, 8},{ 10, 9},{ 11, 10},{ 12, 11},{ 13, 12},{ 14, 13},{ 15, 14},{ 16, 15},{ 17, 16}},
     // {{-6, 5},{-7, 6},{-8, 7},{-9, 8},{-10, 9},{-11, 10},{-12, 11},{-13, 12},{-14, 13},{-15, 14},{-16, 15},{-17, 16}},
@@ -743,6 +777,14 @@ __device__ void CheckerboardPropagation(const cudaTextureObject_t *images, const
     {{ 5,0},{ 7,0},{ 9,0},{ 11,0},{ 13,0},{ 15,0},{ 17,0},{ 19,0},{ 21,0},{ 23,0}}
 	};
 	static constexpr int numDirs[8] = {12, 12, 12, 12, 10, 10, 10, 10};
+
+//    static constexpr int2 dirs[8]= {
+//            { -1,-1},{ 1,-1},{ 1,1},{ -1,1},{-1,0},{ 0,-1},{ 1,0},{ 0,1}
+//    };
+//    static constexpr int2 dirs2[8]= {
+//            {-1,0},{ 0,-1},{ 1,0},{ 0,-1},{ 1,0},{ 0,1},{ 0,1},{ -1,0}
+//    };
+//    static constexpr int numDirs[8] = {6, 6, 6, 6, 8, 8, 8, 8};
 	const int neighborPositions[4] = {
 		idx - width,
 		idx + width,
@@ -755,7 +797,7 @@ __device__ void CheckerboardPropagation(const cudaTextureObject_t *images, const
 
 	for (int posId=0; posId<8; ++posId) {
 		const int2* samples = dirs[posId];
-		int2 bestNx; 
+		int2 bestNx;
         float bestConf(FLT_MAX);
 		for (int dirId=0; dirId<numDirs[posId]; ++dirId) {
 			const int2& offset = samples[dirId];
@@ -854,7 +896,6 @@ __device__ void CheckerboardPropagation(const cudaTextureObject_t *images, const
         }
         final_costs[i] /= weight_norm;
     }
-
     const int min_cost_idx = FindMinCostIndex(final_costs, 8);
     float cost_now = 0.0f, GeomCost_now = 0.0f;
     {
@@ -948,7 +989,6 @@ __device__ void CheckerboardPropagation(const cudaTextureObject_t *images, const
            selected_views[idx] = temp_selected_views;
         }
     }
-
     PlaneHypothesisRefinement(images, depths, tex_prior, cameras, &plane_hypotheses_now, &depth_now, &cost_now, &GeomCost_now, &randStates[idx], view_weights, weight_norm, PriorPlanes, PlaneMask, &restricted_cost, p, params,scale);
     costs[idx] = cost_now;
     PlaneHypotheses[idx] = plane_hypotheses_now;
@@ -957,25 +997,25 @@ __device__ void CheckerboardPropagation(const cudaTextureObject_t *images, const
     }
 }
 
-__global__ void BlackPixelUpdate(const cudaTextureObject_t* images, const cudaTextureObject_t *depths, const uchar *texMap, Camera *cameras, float4 *PlaneHypotheses, float *costs, curandState *randStates, unsigned int *selected_views, float4 *PriorPlanes, unsigned int *PlaneMask, const PatchMatchParams params, const int iter,const int scale,float *GeomCost){
+__global__ void BlackPixelUpdate(const cudaTextureObject_t* images, const cudaTextureObject_t *depths, Camera *cameras, float4 *PlaneHypotheses, float *costs, curandState *randStates, unsigned int *selected_views, float4 *PriorPlanes, unsigned int *PlaneMask, const PatchMatchParams params, const int iter,const int scale,float *GeomCost){
     int2 p = make_int2(blockIdx.x * blockDim.x + threadIdx.x, blockIdx.y * blockDim.y + threadIdx.y);
     if (threadIdx.x % 2 == 0) {
         p.y = p.y * 2;
     } else {
         p.y = p.y * 2 + 1;
     }
-    CheckerboardPropagation(images, depths, texMap, cameras, PlaneHypotheses, costs, randStates, selected_views, PriorPlanes, PlaneMask, p, params, iter,scale,GeomCost);
+    CheckerboardPropagation(images, depths, cameras, PlaneHypotheses, costs, randStates, selected_views, PriorPlanes, PlaneMask, p, params, iter,scale,GeomCost);
 
 }
 
-__global__ void RedPixelUpdate(const cudaTextureObject_t* images, const cudaTextureObject_t *depths, const uchar *texMap, Camera *cameras, float4 *PlaneHypotheses, float *costs, curandState *randStates, unsigned int *selected_views, float4 *PriorPlanes, unsigned int *PlaneMask, const PatchMatchParams params, const int iter,const int scale,float *GeomCost){
+__global__ void RedPixelUpdate(const cudaTextureObject_t* images, const cudaTextureObject_t *depths, Camera *cameras, float4 *PlaneHypotheses, float *costs, curandState *randStates, unsigned int *selected_views, float4 *PriorPlanes, unsigned int *PlaneMask, const PatchMatchParams params, const int iter,const int scale,float *GeomCost){
     int2 p = make_int2(blockIdx.x * blockDim.x + threadIdx.x, blockIdx.y * blockDim.y + threadIdx.y);
     if (threadIdx.x % 2 == 0) {
         p.y = p.y * 2 + 1;
     } else {
         p.y = p.y * 2;
     }
-    CheckerboardPropagation(images, depths, texMap, cameras, PlaneHypotheses, costs, randStates, selected_views, PriorPlanes, PlaneMask, p, params, iter,scale,GeomCost);
+    CheckerboardPropagation(images, depths, cameras, PlaneHypotheses, costs, randStates, selected_views, PriorPlanes, PlaneMask, p, params, iter,scale,GeomCost);
 }
 
 __global__ void GetDepthandNormal(Camera *cameras, float4 *plane_hypotheses, const PatchMatchParams params)
@@ -1146,9 +1186,9 @@ __device__ void ProjectPoint2(const float3 PointX, const Camera camera, float2 &
 }
 
 void PatchMatchCUDA::Run(){
-    const int width=cameras[0].width;
-    const int height=cameras[0].height;
-    int maxScale=params.max_scale;
+    const int width = cameras[0].width;
+    const int height = cameras[0].height;
+    int maxScale = params.max_scale;
     int BLOCK_W = 32;
     int BLOCK_H = (BLOCK_W / 2);
     const dim3 blockSize(BLOCK_W,BLOCK_H,1);
@@ -1158,7 +1198,7 @@ void PatchMatchCUDA::Run(){
     int max_iterations = params.max_iterations;
 
     InitializeScore<<<gridSizeInit,blockSize>>>(cudaTextureImages, cudaCameras, cudaPlaneHypotheses, cudaCosts, cudaRandStates, cudaSelectedViews, cudaPriorPlanes, cudaPlaneMask, params, maxScale);
-    cudaDeviceSynchronize();
+    checkCudaCall(cudaDeviceSynchronize());
 
 //    if(params.planar_prior)
 //    {
@@ -1170,10 +1210,10 @@ void PatchMatchCUDA::Run(){
 
     if(params.geom_consistency || params.planar_prior){
         for (int i = 0; i < max_iterations; ++i) {
-            BlackPixelUpdate<<<gridSizeCheckerboard, blockSize>>>(cudaTextureImages, cudaTextureDepths, cudaTexCofMap, cudaCameras, cudaPlaneHypotheses, cudaCosts, cudaRandStates, cudaSelectedViews, cudaPriorPlanes, cudaPlaneMask, params, i, 0, cudaGeomCosts);
+            BlackPixelUpdate<<<gridSizeCheckerboard, blockSize>>>(cudaTextureImages, cudaTextureDepths, cudaCameras, cudaPlaneHypotheses, cudaCosts, cudaRandStates, cudaSelectedViews, cudaPriorPlanes, cudaPlaneMask, params, i, 0, cudaGeomCosts);
             checkCudaCall(cudaDeviceSynchronize());
 
-            RedPixelUpdate<<<gridSizeCheckerboard, blockSize>>>(cudaTextureImages, cudaTextureDepths, cudaTexCofMap, cudaCameras, cudaPlaneHypotheses, cudaCosts, cudaRandStates, cudaSelectedViews, cudaPriorPlanes, cudaPlaneMask, params, i, 0, cudaGeomCosts);
+            RedPixelUpdate<<<gridSizeCheckerboard, blockSize>>>(cudaTextureImages, cudaTextureDepths, cudaCameras, cudaPlaneHypotheses, cudaCosts, cudaRandStates, cudaSelectedViews, cudaPriorPlanes, cudaPlaneMask, params, i, 0, cudaGeomCosts);
             checkCudaCall(cudaDeviceSynchronize());
 
             printf("iteration: %d/%d\n", i+1,max_iterations);
@@ -1184,10 +1224,10 @@ void PatchMatchCUDA::Run(){
         {
             printf("Scale: %d\n", scale);
             for (int i = 0; i < max_iterations; ++i) {
-                BlackPixelUpdate<<<gridSizeCheckerboard, blockSize>>>(cudaTextureImages, cudaTextureDepths, cudaTexCofMap, cudaCameras, cudaPlaneHypotheses, cudaCosts, cudaRandStates, cudaSelectedViews, cudaPriorPlanes, cudaPlaneMask, params, i, scale, cudaGeomCosts);
+                BlackPixelUpdate<<<gridSizeCheckerboard, blockSize>>>(cudaTextureImages, cudaTextureDepths, cudaCameras, cudaPlaneHypotheses, cudaCosts, cudaRandStates, cudaSelectedViews, cudaPriorPlanes, cudaPlaneMask, params, i, scale, cudaGeomCosts);
                 checkCudaCall(cudaDeviceSynchronize());
 
-                RedPixelUpdate<<<gridSizeCheckerboard, blockSize>>>(cudaTextureImages, cudaTextureDepths, cudaTexCofMap, cudaCameras, cudaPlaneHypotheses, cudaCosts, cudaRandStates, cudaSelectedViews, cudaPriorPlanes, cudaPlaneMask, params, i, scale, cudaGeomCosts);
+                RedPixelUpdate<<<gridSizeCheckerboard, blockSize>>>(cudaTextureImages, cudaTextureDepths, cudaCameras, cudaPlaneHypotheses, cudaCosts, cudaRandStates, cudaSelectedViews, cudaPriorPlanes, cudaPlaneMask, params, i, scale, cudaGeomCosts);
                 checkCudaCall(cudaDeviceSynchronize());
 
                 printf("iteration: %d/%d\n", i+1,max_iterations);
@@ -1200,7 +1240,6 @@ void PatchMatchCUDA::Run(){
     
     BlackPixelFilter<<<gridSizeCheckerboard, blockSize>>>(cudaCameras, cudaPlaneHypotheses, cudaCosts);
     checkCudaCall(cudaDeviceSynchronize());
-
     RedPixelFilter<<<gridSizeCheckerboard, blockSize>>>(cudaCameras, cudaPlaneHypotheses, cudaCosts);
     checkCudaCall(cudaDeviceSynchronize());
 
@@ -1209,11 +1248,7 @@ void PatchMatchCUDA::Run(){
     if(params.geomPlanarPrior)
     {
         checkCudaCall(cudaMemcpy(hostGeomCosts, cudaGeomCosts, sizeof(float) * width * height, cudaMemcpyDeviceToHost));
-        // TextureConfMap<<<gridSizeInit,blockSize>>>(cudaTextureImages,cudaTexCofMap,width,height,params);
-        // checkCudaCall(cudaDeviceSynchronize());
-        // checkCudaCall(cudaMemcpy(hostTexCofMap, cudaTexCofMap, sizeof(uchar)*width*height, cudaMemcpyDeviceToHost));
     }
 
-        
 
 }

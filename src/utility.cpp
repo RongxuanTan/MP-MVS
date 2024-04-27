@@ -20,7 +20,7 @@ ConfigParams readConfig(std::string yaml_path){
     fs["Save Dmb as JPG"] >> config.saveDmb;
     fs["Save Prior Dmb as JPG"] >> config.saveProirDmb;
     fs["Save Cost Map"] >> config.saveCostDmb;
-    fs["Save Normal Map"] >> config.saveCostDmb;
+    fs["Save Normal Map"] >> config.saveNormalDmb;
 
     fs["Max source images num"] >> config.MaxSourceImageNum;
     fs["Max image size"] >> config.MaxImageSize;
@@ -53,7 +53,21 @@ bool readGT(const std::string file_path, cv::Mat_<float> &depth)
     return true;
 }
 
-bool GTVisualize(cv::Mat_<float> &depth)
+bool writeGT(const std::string file_path, cv::Mat_<float> &depth){
+    FILE *outimage;
+    outimage = fopen(file_path.c_str(), "wb");
+
+    int32_t h=4032, w=6048, nb=1;
+    int32_t dataSize = h*w*nb;
+
+    float* data = (float*)depth.data;
+    fwrite(data,sizeof(float),dataSize,outimage);
+
+    fclose(outimage);
+    return true;
+}
+
+bool GTVisualize(cv::Mat_<float> &depth, std::string path)
 {
     if(depth.empty())  //判断是否有数据
     {   
@@ -93,11 +107,11 @@ bool GTVisualize(cv::Mat_<float> &depth)
     cv::applyColorMap(uint_dmb,color_dmb,cv::COLORMAP_JET);
     
     Colormap2Bgr(color_dmb,bgr_img,mask);
-    //cv::imwrite("/home/xuan/MP-MVS/result/GT.jpg",bgr_img);
+    cv::imwrite(path,bgr_img);
 
-    cv::namedWindow("dmap", (800,1200));
-    cv::imshow("dmap",bgr_img);
-    cv::waitKey(0);   
+//    cv::namedWindow("dmap", (800,1200));
+//    cv::imshow("dmap",bgr_img);
+//    cv::waitKey(0);
 
 }
 
@@ -141,7 +155,10 @@ void GetSubFileNames(std::string path,std::vector<std::string>& filenames)
 bool readColmapDmap(const std::string file_path, cv::Mat_<float> &depth)
 {
     std::fstream text_file(file_path, std::ios::in | std::ios::binary);
-
+    if (!text_file){
+        std::cout << "Error opening file " << file_path << std::endl;
+        return -1;
+    }
     size_t width = 0;
     size_t height = 0;
     size_t d= 0;
@@ -173,7 +190,7 @@ bool readColmapDmap(const std::string file_path, cv::Mat_<float> &depth)
     //DmbVisualize(depth);
 }
 
-bool readDepthDmb(const std::string file_path, cv::Mat_<float> &depth)
+bool  readDepthDmb(const std::string file_path, cv::Mat_<float> &depth)
 {
     FILE *inimage;
     inimage = fopen(file_path.c_str(), "rb");
@@ -369,8 +386,9 @@ void Colormap2Bgr(cv::Mat &src,cv::Mat &dst,cv::Mat &mask){
     }
 }
 
-bool SaveDmb(cv::Mat_<float> &depth, const std::string save_path, bool hist_enhance = false)
+bool SaveDmb(const cv::Mat_<float> &depth_, const std::string save_path, bool hist_enhance = true)
 {
+    cv::Mat_<float> depth = depth_.clone();
     if(depth.empty())
     {
         std::cout<<"Can not read this depth image !"<<std::endl;
@@ -463,14 +481,17 @@ void saveDmbAsJpg(ConfigParams &config, size_t num_images, bool hist_enhance = t
     std::string image_folder = dense_folder + std::string("/images");
     std::string cam_folder = dense_folder + std::string("/cams");
     std::cout << "Start save data as jpg" << std::endl;
+    mkdir("/home/xuan/MP-MVS/result/dmap/", 0777);
     for (size_t i = 0; i < num_images; ++i) {
-        std::stringstream read_folder;
+        std::stringstream read_folder,save_folder;
         read_folder << dense_folder << "/MPMVS" << "/2333_" << std::setw(8) << std::setfill('0') << i;
+        save_folder << "/home/xuan/MP-MVS/result/dmap/" << i+1 << ".dmb";
         if(config.saveDmb){
             std::string depth_path = read_folder.str() + "/depths.dmb";
             std::string save_path = read_folder.str() + "/depths.jpg";
             cv::Mat_<float> dmap;
             readDepthDmb(depth_path, dmap);
+            writeDepthDmb(save_folder.str(),dmap);
             SaveDmb(dmap, save_path, hist_enhance);
         }
         if(config.saveProirDmb && (config.planar_prior || config.geomPlanarPrior)){

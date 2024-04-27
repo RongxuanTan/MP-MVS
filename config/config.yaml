@@ -5,14 +5,14 @@ Output-folder: "/home/xuan/MP-MVS/result/dense"
 Geometric consistency iterations: 2
 Planer prior: 1
 Geometric consistency planer prior: 1
-Sky segment: 0
+Sky segment: 1
 Use dynamic_consistency to fuse: 1
 
 #transform dmb as jpg
-Save Dmb as JPG: 0
-Save Prior Dmb as JPG: 0
-Save Cost Map: 0
-Save Normal Map: 0
+Save Dmb as JPG: 1
+Save Prior Dmb as JPG: 1
+Save Cost Map: 1
+Save Normal Map: 1
 
 Max source images num: 20
 Max image size: 3200

@@ -56,13 +56,13 @@ struct PatchMatchParams {
     int top_k = 4;
     float depth_min = 0.0f;
     float depth_max = 1.0f;
-    int max_scale=2;
+    int max_scale = 2;
 
     float scaled_cols;
     float scaled_rows;
 
     bool geom_consistency = false;
-    bool geomPlanarPrior=false;
+    bool geomPlanarPrior = false;
     bool planar_prior = false;
 };
 

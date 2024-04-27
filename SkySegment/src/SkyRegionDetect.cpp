@@ -409,6 +409,72 @@ cv::Mat smooth_upsample(cv::Mat &X, cv::Size sz)
     return XX;
 }
 
+void bilateral_filter_upsampling(const cv::Mat& img, const cv::Mat& mask, cv::Mat& result){
+    const int W = img.cols;
+    const int H = img.rows;
+    cv::Mat mask2;
+    cv::resize(mask,mask2,cv::Size(W,H),cv::INTER_LINEAR);
+    cv::Mat src;
+    img.convertTo(src,CV_32F);
+    cv::Mat final(cv::Size(W,H),CV_32F);
+    float sigma_d = 5.0f;
+    float sigma_c = 3.0f;
+    sigma_c = 2.0f * sigma_c * sigma_c;
+    sigma_d = 2.0f * sigma_d * sigma_d;
+    for (int i = 0; i < H; ++i) {
+        for (int j = 0; j < W; ++j) {
+            std::cout<< i <<" " << j <<std::endl;
+            const cv::Vec3f center_color(src.at<cv::Vec3f>(i,j));
+            const cv::Point2f p(i,j);
+            float weight_sum = 0.0f;
+            float proba = 0.0f;
+            const int half_windows = 8;
+            for(int i2 = -half_windows; i2 <= half_windows; ++i2){
+                for(int j2 = -half_windows; j2<= half_windows; ++j2){
+                    cv::Point2f np(p.x + i2 , p.y + j2);
+                    if(np.x<0 || np.x >= H || np.y < 0 || np.y >= W)
+                        continue;
+                    float dis_color = sqrt(pow((src.at<cv::Vec3f>(np.x,np.y)[0] - center_color[0]),2)
+                            + pow((src.at<cv::Vec3f>(np.x,np.y)[1] - center_color[1]),2)
+                            + pow((src.at<cv::Vec3f>(np.x,np.y)[2] - center_color[2]),2));
+                    float distance = sqrt(np.x * np.x + np.y * np.y);
+                    float temp = - dis_color / sigma_c - distance / sigma_d;
+                    float temp_weight = exp(temp);
+                    weight_sum += temp_weight;
+                    const float mp = mask2.at<float>(np.x,np.y);
+                    float p = temp_weight *  mp;
+                    proba += p;
+//                    if(mp<0.1)
+//                    std::cout<<temp_weight <<" "<<mask2.at<float>(np.x,np.y)<<" "<<p<<endl;
+
+                }
+            }
+            proba = proba / weight_sum;
+            final.at<float>(i,j) = proba > 0.6 ? 255 : 0;
+//            std::cout<<mask2.at<float>(i,j) <<endl;
+//            std::cout<<proba<<" "<<weight_sum<<std::endl;
+
+        }
+    }
+    result = final.clone();
+}
+
+void image_mask_fuse(cv::Mat &img, cv::Mat &mask, cv::Mat &result){
+    assert(img.rows == mask.rows && img.cols == mask.cols);
+    const int h = img.rows;
+    const int w = img.cols;
+    result = img.clone();
+    for (int i = 0; i < h; ++i) {
+        for (int j = 0; j < w; ++j) {
+            if(mask.at<uchar>(i, j) != 0){
+                result.at<cv::Vec3b>(i, j)[0] = 0;
+                result.at<cv::Vec3b>(i, j)[1] = 255;
+                result.at<cv::Vec3b>(i, j)[2] = 0;
+            }
+        }
+    }
+}
+
 int mask_refine(std::string img_folder,std::string mask_folder,std::string outname) {
     Mat bgr = imread(img_folder,CV_32F);
     cvtColor(bgr,bgr,CV_BGR2RGB);
@@ -429,6 +495,8 @@ int mask_refine(std::string img_folder,std::string mask_folder,std::string outna
     Mat img = reference.clone();
 
     Mat confidence = probability_to_confidence(mask,reference);
+
+    Mat temp = confidence.clone();
 
     Mat conf = confidence.clone();
     Mat refer1 = reference.clone();
@@ -519,19 +587,30 @@ int mask_refine(std::string img_folder,std::string mask_folder,std::string outna
             output.at<float>(i1, i) = sum + residual_modify.at<float>(i1, i);
             if(output.at<float>(i1, i) > 0.4f)
             {
-                output.at<float>(i1, i) = 255.f;
+                output.at<float>(i1, i) = 1.f;
             }else
             {
                 output.at<float>(i1, i) = 0.f;
             }
         }
     }
-    cv::imwrite(outname,output);
+    //cv::imwrite(outname,output);
 
-    // bilateralFilter
-    // Mat out_bilf;
-    // bilateralFilter(output, out_bilf, 0, 20, 10);
-    // cv::imwrite("../eval/IMG_20210309_211233_filter.png",out_bilf);
+     //bilateralFilter
+     Mat out_bilf;
+     bilateralFilter(output, out_bilf, 0, 20, 10);
+     for (int i1 = 0; i1 < out_bilf.rows; ++i1) {
+        for (int i = 0; i < out_bilf.cols; ++i) {
+            if(out_bilf.at<float>(i1, i) > 0.6f)
+            {
+                out_bilf.at<float>(i1, i) = 255.f;
+            }else
+            {
+                out_bilf.at<float>(i1, i) = 0.f;
+            }
+        }
+    }
+     cv::imwrite(outname,out_bilf);
 
     //cv::imwrite(outname,255 * output);
 
