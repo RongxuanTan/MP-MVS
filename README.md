@@ -41,6 +41,11 @@ If it is an indoor scene (especially if it is a weakly textured scene), set it t
 The code and models for sky detection were derived from [Owner avatar Sky-Segmentation-and-Post-processing ](https://github.com/xiongzhu666/Sky-Segmentation-and-Post-processing).
 `Sky segment`: Whether to use sky area detection to eliminate sky artifacts
 
+### Sky Filter
+
+![Alt Text](result/1a.jpg)
+
+
 ### Run
 ```
 //Use script colmap2mvsnet_acm.py to convert COLMAP SfM result to MPMVS input
