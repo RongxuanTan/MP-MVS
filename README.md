@@ -43,7 +43,7 @@ The code and models for sky detection were derived from [Owner avatar Sky-Segmen
 
 ### Sky Filter
 
-![Alt Text](result/1a.jpg)
+![Alt Text](result/1a.png)
 
 
 ### Run
