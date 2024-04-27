@@ -42,10 +42,12 @@ The code and models for sky detection were derived from [Owner avatar Sky-Segmen
 `Sky segment`: Whether to use sky area detection to eliminate sky artifacts
 
 ### Sky Filter
-
+Before sky filter:
 ![Alt Text](result/1a.png)
-
-
+![Alt Text](result/2a.png)
+After sky filter:
+![Alt Text](result/1b.png)
+![Alt Text](result/2b.png)
 ### Run
 ```
 //Use script colmap2mvsnet_acm.py to convert COLMAP SfM result to MPMVS input
